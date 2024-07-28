@@ -69,7 +69,7 @@ for epi in range(EPISODES):
 
     last_loss = None
 
-    while not done and time_step <= 82:
+    while not done and time_step <= 71:
         time_step += 1
         if env.first_move:
             mine_state = env.minefield.flatten()
@@ -104,7 +104,7 @@ for epi in range(EPISODES):
     timesteps[epi] = time_step
 
     # 에피소드가 끝날 때 승리 여부를 기록
-    if env.explode or time_step > 82:
+    if env.explode or time_step > 71:
         wins[epi] = 0
     elif not env.explode:
         wins[epi] = 1
