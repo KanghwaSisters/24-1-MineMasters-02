@@ -15,7 +15,6 @@ class MineSweeper(nn.Module):
         self.epsilon = EPSILON
         self.epsilon_decay = EPSILON_DECAY
         self.epsilon_min = EPSILON_MIN
-        self.conv_unit = CONV_UNIT
 
         self.target_update_counter = TARGET_UPDATE_COUNTER
         self.update_target_every = UPDATE_TARGET_EVERY
