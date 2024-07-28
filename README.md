@@ -596,7 +596,9 @@ class MineSweeper(nn.Module):
     ![10-timesteps](https://github.com/user-attachments/assets/60eab1f8-aa81-4cff-967e-530639f6b268)
    
     ![10-score](https://github.com/user-attachments/assets/22b6c5eb-fdb3-468b-8306-d7463eb8d704)
-    
+
+   (rewards = {'explode' : -20, 'open_nonzero' : 5, 'open_zero' : 10, 'clear' : 20})
+   
 3. **state 정규화**
     
     Net의 input으로 이용할 state를 정규화하였다.
@@ -641,12 +643,10 @@ class MineSweeper(nn.Module):
     
     train에 비해 test의 성능이 현저하게 떨어지는 문제 발생
     
-    ![Train](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/491c0216-73ac-4368-b2d0-db407e5bf0a8/Untitled.png)
-    
+    ![valid-train](https://github.com/user-attachments/assets/357af465-3b75-4941-8c6f-2e50628fb58f)
     Train
     
-    ![Test](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/2e14f2a6-2130-4512-afc9-b8350a1f4ee9/Untitled.png)
-    
+    ![valid-test](https://github.com/user-attachments/assets/e56a3a9f-a19d-4899-a713-9e950864f4a6)
     Test
     
     ⇒ validation 코드를 추가하여 과적합을 방지하고자 하였다.
@@ -777,7 +777,7 @@ class MineSweeper(nn.Module):
             return out
     ```
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/b2ad8e67-1f67-40fd-80c3-5b548167af16/Untitled.png)
+    ![residual_learning](https://github.com/user-attachments/assets/8b835ecd-78a6-4e56-9b45-92c0a2f6c017)
     
     - 2015년에 개최된 ILSVRC(ImageNet Large Scale Visual Recognition Challenge)에서 우승을 차지하고 딥러닝 이미지 분야에서 많이 사용되고 있는 ResNet의 구조를 참고했다.
     - ResNet은 Residual Learning을 이용하는데, 위 그림의 $F(x)$  (잔차) + $x$ 를 최소화하는 것을 목적으로 한다. ResidualBlock 클래스의 forward 메서드에서 이 구조를 따랐다.
