@@ -163,6 +163,7 @@ class Environment:
                 3. open한 타일이 0이면 주위 타일 open (`auto_reveal_tiles`)
                 4. hidden tile(9)이 남아있는 경우 `done=False`, 남아있지 않은 경우 `done=True` 반환
                 5. `next_state`로 playerfield 반환
+        ![step()_flowchart](https://github.com/user-attachments/assets/c80f349a-d6cb-4ca9-9df2-f28cd16763ef)
 
 ```python
 def step(self, action):
