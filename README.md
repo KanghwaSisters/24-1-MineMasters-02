@@ -63,11 +63,11 @@ rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 
     - **`first_move`**: 현재 움직임이 첫 번째 움직임인지 여부
 - 이때 **`action`** 은 에이전트가 playerfield에서 선택한 좌표로 정의한다.
 - 보상 **`rewards`**
-    - 'explode' : -1
-    - 'noprogress' : -1
+    | explode | noprogress | guess | progress | clear |
+    | --- | --- | --- | --- | --- |
+    | -1 | -1 | 0.1 | 0.3 | 1 |
     - 'guess' : 0.1
     - 'progress' : 0.3
-    - 'clear' : 1
 
 ## Methods
 
