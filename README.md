@@ -3,14 +3,6 @@
 👩‍💻 이정연, 손주현
 ***
 # 목차
-[시도한 방법론 분석 아이디어 및 결과](#-시도한-방법론-분석-아이디어-및-결과)
-
-[코드 속도 개선](#코드-속도-개선)
-
-[최고 성능이 나온 방법론 (모델)](#-최고-성능이-나온-방법론-(모델))
-
-[문제 해결 및 개선한 점](#-문제-해결-및-개선한-점)
-
 [Environment](#Environment)
 
 [Net](#Net)
@@ -19,301 +11,15 @@
 
 [Train](#Train)
 
-***
-# 시도한 방법론 분석 아이디어 및 결과
+[시도한 방법론 분석 아이디어 및 결과](#-시도한-방법론-분석-아이디어-및-결과)
 
-1. 먼저 **게임판을 10개로 한정**하여 성능(승률)을 높이는 것을 시도함
-    
-    단순한 구조의 DNN을 net으로 사용하고 learning rate scheduler가 lambdaLR일 때는  학습 시 거의 한 번도 승리하지 못하다가, CNN과 cyclicLR으로 변경하니 50000 에피소드로 학습 시 평균 승률 3.6%를 웃돌았다.
-    
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/095f9517-9925-478d-83e9-5cbc891249d4/Untitled.png)
-    
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/0aaaf646-9883-4685-bd1f-552d37e9d06a/Untitled.png)
-    
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/eedd1f14-4404-4e1a-9d59-62c9e4ec364c/Untitled.png)
-    
-2. **state 정규화** :
-    
-    Net의 input으로 이용할 state를 0~1 사이 값들로 정규화 하였다.
-    
-    - **정규화의 목적**
-    
-    ![출처) https://hyen4110.tistory.com/m/20](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/41456955-2188-49cb-ba8e-649158c09337/Untitled.png)
-    
-    출처) https://hyen4110.tistory.com/m/20
-    
-    - **state 정규화를 시행한 위치**
-        
-        정규화를 step에서 하면 다음 step의 state가 scaled_state가 되는 문제 발생
-        
-        (state과 scaled_state 간의 구분 불가)
-        
-        ⇒ env.step() 대신 학습 루프에 scaled_state를 정의
-        
-        ```python
-        for epi in range(EPISODES):
-        		...
-            state = env.reset() # 2차원 배열 state
-        
-            while not done and time_step <= 71:
-                time_step += 1
-                if env.first_move:
-                    mine_state = env.minefield.flatten()
-                    first_action = random.randint(0, len(mine_state)-1)
-                    first_state = mine_state[first_action]
-                    while first_state == -1:
-                        first_action = random.randint(0, len(mine_state)-1)
-                        first_state = mine_state[first_action]
-                    action = first_action
-                    env.first_move = False
-                else:
-                    action = agent.get_action(state)
-                   
-                next_state, reward, done = env.step(action)
-        
-                # state (신경망의 input) 정규화
-                scaled_state = (next_state - (-1)) / (8 - (-1))
-        
-                agent.append_sample(state, action, reward, scaled_state, done)
-        ```
-        
-3. **validation - 과적합 문제**
-    
-    train에 비해 test의 성능이 현저하게 떨어지는 문제 발생
-    
-    ![Train](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/491c0216-73ac-4368-b2d0-db407e5bf0a8/Untitled.png)
-    
-    Train
-    
-    ![Test](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/2e14f2a6-2130-4512-afc9-b8350a1f4ee9/Untitled.png)
-    
-    Test
-    
-    ⇒ validation 코드를 추가하여 과적합을 방지하고자 함
-    
-    ```python
-    class ValidationEnvironment(Environment):
-        def __init__(self):
-            super().__init__()
-    ```
-    
-    ```python
-    class MineSweeper(nn.Module):
-    		...
-    		def validate_model(self, validation_env, episodes=100):
-    	      self.model.eval()
-            total_score = 0
-            total_wins = 0
-    
-            for epi in range(episodes):
-                state = validation_env.reset()
-                done = False
-                score = 0
-    
-                while not done:
-                    action = self.get_action(state)
-                    next_state, reward, done = validation_env.step(action)
-                    score += reward
-                    state = next_state
-    
-                total_score += score
-                if not validation_env.explode:
-                    total_wins += 1
-    
-            avg_score = total_score / episodes
-            win_rate = (total_wins / episodes) * 100
-    
-            print(f"Validation results over {episodes} episodes:")
-            print(f"Average score: {avg_score:.2f}")
-            print(f"Win rate: {win_rate:.2f}%")
-    
-            self.model.train()
-    ```
-    
-    ```python
-        if epi < 20000:
-            validation_interval = VALIDATION_INTERVAL_INITIAL
-        elif epi < 60000:
-            validation_interval = VALIDATION_INTERVAL_MIDDLE
-        else:
-            validation_interval = VALIDATION_INTERVAL_LATE
-    
-        if epi % validation_interval == 0:
-            print(f"Performing validation at episode {epi}...")
-            agent.validate_model(validation_env, episodes=100)
-            print("Validation complete.")
-    ```
-    
-4. 에이전트가 같은 타일을 선택할 수 있게 할 것인가?
-    - 한 에피소드 내에서 한 번 선택한 타일은 이후의 time step에서 선택하지 못하도록 하는 방법: 오히려 에이전트가 ‘이미 연 타일을 반복해서 선택하는 것은 좋지 않은 행동’임을 학습하는 걸 방해하는 것이라고 생각하게 되었다.
-    - 하지만 같은 타일을 계속 선택하다 보면 time step이 엄청나게 길어질 수 있음
-        
-        → 최대 time step 71(81-10)으로 제한했다. (멈춤 조건 설정)
-        
-5. 지뢰를 선택했을 때와 방문했던 좌표를 또 선택할 때의 보상이 동일함에도 불구하고, 학습이 진행됨에 따라 지뢰는 거의 선택하지 않는데 이미 갔던 (안전하다고 판단하는) 좌표는 계속 방문하는 문제 발생: 
-    
-    이미 방문한 타일을 다시 방문할 때마다 페널티를 점진적으로 증가시키는 방법을 사용하여 에이전트가 동일한 타일을 반복해서 방문하지 않도록 시도해보았다.
-    
-    ```python
-    self.visit_count = {}
-    
-    self.rewards = {'explode' : -1, 'nonprogress' : -1,'open_nonzero' : 0.1, 'open_zero' : 0.3, 'clear' : 1}
-    
-    if (x, y) in self.visit_count:  # 선택한 좌표 (x,y)가 이미 방문된 경우
-    		self.visit_count[(x, y)] += 1  # 방문 횟수 증가
-    		reward = self.rewards['nonprogress'] * self.visit_count[(x, y)]
-    ```
-    
-6. 보상 설정
-    1. 지뢰 선택 시 (---) / 지뢰 아닌 좌표 선택 시 (+) / 승리 시 (++)
-    2. 지뢰 선택 시 (---) / 0을 선택하여 많은 좌표가 열렸을 시 (++) / 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
-    3. 지뢰 선택 시 (---) / 이미 연 좌표 선택 시 (---) / 새로운 0 선택 시 (++) / 새로운 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
-7. Optimizer: Adam과 RMSprop
-8. Net: DNN과 CNN / 기본적인 CNN과 ResNet을 참고한 구조
-9. Learning rate scheduler: lambdaLR → cyclicLR (판 10개) → StepLR
-10. 모델 저장(추론 / 학습 재개를 위해 일반 체크포인트(checkpoint) 저장하기 & 불러오기**)**
-    - 체크포인트 저장하기
-        
-        ```python
-        if epi % CHECKPOINT_INTERVAL == 0:
-            checkpoint_path = f"checkpoint_{epi}.tar"
-            save_checkpoint(agent, agent.optimizer, epi, score, checkpoint_path)
-            print(f"Checkpoint saved at episode {epi} to {checkpoint_path}.")
-        ```
-        
-    - 체크포인트 불러오기
-        
-        ```python
-        checkpoint_path = 'checkpoint_5000.tar'  # 예) 5000번째 에피소드 체크포인트
-        agent, optimizer, start_epoch, last_loss = load_checkpoint(agent, optimizer, checkpoint_path)
-        
-        print(f"Checkpoint loaded from {checkpoint_path}. Starting from epoch {start_epoch}.")
-        ```
-        
-***
-# 코드 속도 개선
+[코드 속도 개선](#코드-속도-개선)
 
-1. 리스트와 넘파이 배열
-    
-    `UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at ../torch/csrc/utils/tensor_new.cpp:274.)
-    states = torch.tensor(states, dtype=torch.float32).to(device)` 
-    
-    ```python
-    # Agent 클래스의 train_model() 메서드
-    
-    minibatch = random.sample(self.memory, self.batch_size)
-    states, actions, rewards, next_states, dones = zip(*minibatch)
-    # 여기서 각 요소들 불러오면 리스트로 받아지므로
-    
-    # 넘파이 배열들의 리스트 -> 다차원 넘파이 배열로
-    states = np.array(states)
-    actions = np.array(actions)
-    rewards = np.array(rewards)
-    next_states = np.array(next_states)
-    dones = np.array(dones)
-    ```
-    
-2. BFS
-    - **`auto_reveal_tiles` 메소드 구현 문제**
-        - 재귀 호출 방식 대신 반복문과 큐를 이용하는 방식으로 변경했다.
-        - 기존 코드에서는 재귀 호출 방식 사용 결과, 너무 많은 시간이 소요되는 문제 발생
-        
-        ```python
-        def auto_reveal_tiles(self, x, y):
-                visited = set()  # 중복된 값 허용 X
-                
-                def reveal(x, y):
-                    if (x, y) in visited:
-                        return
-                    visited.add((x, y))
-                    self.playerfield[x, y] = self.minefield[x, y]
-        
-                    # 주변 8개 타일 확인
-                    if self.minefield[x, y] == 0:
-                        for dx in [-1, 0, 1]:
-                            for dy in [-1, 0, 1]:
-                                nx, ny = x + dx, y + dy
-                                # 인덱스가 게임판 범위 내에 있는지 확인
-                                if self.check_boundary(nx, ny) and (nx, ny) not in visited:
-                                    reveal(nx, ny)
-                reveal(x, y)
-                return self.playerfield
-        ```
-        
-        - 큐와 반복문을 이용한 BFS(너비우선탐색) 구조로 변경 ⇒ 속도 개선
-            
-            ```python
-                def auto_reveal_tiles(self, x, y):  # BFS
-                    queue = deque([(x, y)])
-                    self.visited = set()
-            
-                    while queue:
-                        cx, cy = queue.popleft()
-                        self.visited.add((cx, cy))  # (cx, cy) 방문 표시
-                        self.playerfield[cx, cy] = self.minefield[cx, cy]  # (cx, cy) 타일 열기
-                        self.visit_count[(cx, cy)] = self.visit_count.get((cx, cy), 0) + 1  # 방문 횟수 기록
-            
-                        # (cx, cy) 주변 8개 타일 확인, 범위 내에 있으면 큐에 insert
-                        if self.minefield[cx, cy] == 0: 
-                            for dx in [-1, 0, 1]:
-                                for dy in [-1, 0, 1]:
-                                    nx, ny = cx + dx, cy + dy
-                                    # 인덱스가 게임판 범위 내에 있는지 확인
-                                    if self.check_boundary(nx, ny) and (nx, ny) not in self.visited and (nx, ny) not in queue:  # nonvisited 주위 타일 큐에 추가
-                                        queue.append((nx, ny))
-            ```
-            
-***
-# 최고 성능이 나온 방법론 (모델)
+[최고 성능이 나온 방법론 (모델)](#-최고-성능이-나온-방법론-(모델))
 
-- **Adam optimizer를 이용한 모델**
-
-![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/b665a0c8-4368-46fb-9d5c-ce4ea58fca86/Untitled.png)
-
-- **RMSprop optimizer를 이용한 모델**
-
-![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/f457119c-a946-4bf8-a444-5fac91cb0cb0/Untitled.png)
+[문제 해결 및 개선한 점](#-문제-해결-및-개선한-점)
 
 ***
-# 문제 해결 및 개선한 점
-
-- Train의 #safe first click 부분 수정
-    - 기존: 첫 좌표부터 돌면서 -1이 아닌 처음 좌표 선택 → 처음 open하는 좌표가 항상 비슷해짐 (왼쪽 상단 부분에 위치한 좌표들만 선택하게 됨)
-    - 수정: 전체 좌표에서 랜덤 선택 → 지뢰 선택했으면 다시 다른 좌표 랜덤 선택
-    
-    ```python
-    while not done and time_step <= 71:
-            time_step += 1
-            if env.first_move:
-                mine_state = env.minefield.flatten()
-                first_action = random.randint(0, len(mine_state)-1)
-                first_state = mine_state[first_action]
-                while first_state == -1:
-                    first_action = random.randint(0, len(mine_state)-1)
-                    first_state = mine_state[first_action]
-                action = first_action
-                env.first_move = False
-            else:
-                action = agent.get_action(state)
-    ```
-    
-- **score 산정 방식**
-    - step 수가 많을수록 비효율적이라는 점 고려
-    
-    각 에피소드의 전체 보상들의 median으로 설정했더니 대부분 동일한 값이 나오던 문제
-    
-    ⇒ 각 에피소드의 score을 해당 에피소드의 보상 총합으로 수정
-    
-- **가능하면 상수에 대해 하이퍼파라미터 설정**
-    
-     ⇒  코드의 독립성 향상
-    
-- **탐험 부족**
-    - epsilon_decay 값을 늘림→ epsilon이 더 천천히 감소하도록
-    - epsilon_min 값을 줄여 나중에는 정책에 더 의존할 수 있도록
-    - 여러 배치 크기 시도
-
- ***
 
  # Environment
 
@@ -875,3 +581,296 @@ for epi in range(EPISODES):
     - 60000번째 에피소드 전까지는 5000을 주기로,
     - 이후에는 20000을 주기로 validation
 - CheckPoint마다 모델 저장
+
+# 시도한 방법론 분석 아이디어 및 결과
+
+1. 먼저 **게임판을 10개로 한정**하여 성능(승률)을 높이는 것을 시도함
+    
+    단순한 구조의 DNN을 net으로 사용하고 learning rate scheduler가 lambdaLR일 때는  학습 시 거의 한 번도 승리하지 못하다가, CNN과 cyclicLR으로 변경하니 50000 에피소드로 학습 시 평균 승률 3.6%를 웃돌았다.
+    
+    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/095f9517-9925-478d-83e9-5cbc891249d4/Untitled.png)
+    
+    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/0aaaf646-9883-4685-bd1f-552d37e9d06a/Untitled.png)
+    
+    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/eedd1f14-4404-4e1a-9d59-62c9e4ec364c/Untitled.png)
+    
+2. **state 정규화** :
+    
+    Net의 input으로 이용할 state를 0~1 사이 값들로 정규화 하였다.
+    
+    - **정규화의 목적**
+    
+    ![출처) https://hyen4110.tistory.com/m/20](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/41456955-2188-49cb-ba8e-649158c09337/Untitled.png)
+    
+    출처) https://hyen4110.tistory.com/m/20
+    
+    - **state 정규화를 시행한 위치**
+        
+        정규화를 step에서 하면 다음 step의 state가 scaled_state가 되는 문제 발생
+        
+        (state과 scaled_state 간의 구분 불가)
+        
+        ⇒ env.step() 대신 학습 루프에 scaled_state를 정의
+        
+        ```python
+        for epi in range(EPISODES):
+        		...
+            state = env.reset() # 2차원 배열 state
+        
+            while not done and time_step <= 71:
+                time_step += 1
+                if env.first_move:
+                    mine_state = env.minefield.flatten()
+                    first_action = random.randint(0, len(mine_state)-1)
+                    first_state = mine_state[first_action]
+                    while first_state == -1:
+                        first_action = random.randint(0, len(mine_state)-1)
+                        first_state = mine_state[first_action]
+                    action = first_action
+                    env.first_move = False
+                else:
+                    action = agent.get_action(state)
+                   
+                next_state, reward, done = env.step(action)
+        
+                # state (신경망의 input) 정규화
+                scaled_state = (next_state - (-1)) / (8 - (-1))
+        
+                agent.append_sample(state, action, reward, scaled_state, done)
+        ```
+        
+3. **validation - 과적합 문제**
+    
+    train에 비해 test의 성능이 현저하게 떨어지는 문제 발생
+    
+    ![Train](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/491c0216-73ac-4368-b2d0-db407e5bf0a8/Untitled.png)
+    
+    Train
+    
+    ![Test](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/2e14f2a6-2130-4512-afc9-b8350a1f4ee9/Untitled.png)
+    
+    Test
+    
+    ⇒ validation 코드를 추가하여 과적합을 방지하고자 함
+    
+    ```python
+    class ValidationEnvironment(Environment):
+        def __init__(self):
+            super().__init__()
+    ```
+    
+    ```python
+    class MineSweeper(nn.Module):
+    		...
+    		def validate_model(self, validation_env, episodes=100):
+    	      self.model.eval()
+            total_score = 0
+            total_wins = 0
+    
+            for epi in range(episodes):
+                state = validation_env.reset()
+                done = False
+                score = 0
+    
+                while not done:
+                    action = self.get_action(state)
+                    next_state, reward, done = validation_env.step(action)
+                    score += reward
+                    state = next_state
+    
+                total_score += score
+                if not validation_env.explode:
+                    total_wins += 1
+    
+            avg_score = total_score / episodes
+            win_rate = (total_wins / episodes) * 100
+    
+            print(f"Validation results over {episodes} episodes:")
+            print(f"Average score: {avg_score:.2f}")
+            print(f"Win rate: {win_rate:.2f}%")
+    
+            self.model.train()
+    ```
+    
+    ```python
+        if epi < 20000:
+            validation_interval = VALIDATION_INTERVAL_INITIAL
+        elif epi < 60000:
+            validation_interval = VALIDATION_INTERVAL_MIDDLE
+        else:
+            validation_interval = VALIDATION_INTERVAL_LATE
+    
+        if epi % validation_interval == 0:
+            print(f"Performing validation at episode {epi}...")
+            agent.validate_model(validation_env, episodes=100)
+            print("Validation complete.")
+    ```
+    
+4. 에이전트가 같은 타일을 선택할 수 있게 할 것인가?
+    - 한 에피소드 내에서 한 번 선택한 타일은 이후의 time step에서 선택하지 못하도록 하는 방법: 오히려 에이전트가 ‘이미 연 타일을 반복해서 선택하는 것은 좋지 않은 행동’임을 학습하는 걸 방해하는 것이라고 생각하게 되었다.
+    - 하지만 같은 타일을 계속 선택하다 보면 time step이 엄청나게 길어질 수 있음
+        
+        → 최대 time step 71(81-10)으로 제한했다. (멈춤 조건 설정)
+        
+5. 지뢰를 선택했을 때와 방문했던 좌표를 또 선택할 때의 보상이 동일함에도 불구하고, 학습이 진행됨에 따라 지뢰는 거의 선택하지 않는데 이미 갔던 (안전하다고 판단하는) 좌표는 계속 방문하는 문제 발생: 
+    
+    이미 방문한 타일을 다시 방문할 때마다 페널티를 점진적으로 증가시키는 방법을 사용하여 에이전트가 동일한 타일을 반복해서 방문하지 않도록 시도해보았다.
+    
+    ```python
+    self.visit_count = {}
+    
+    self.rewards = {'explode' : -1, 'nonprogress' : -1,'open_nonzero' : 0.1, 'open_zero' : 0.3, 'clear' : 1}
+    
+    if (x, y) in self.visit_count:  # 선택한 좌표 (x,y)가 이미 방문된 경우
+    		self.visit_count[(x, y)] += 1  # 방문 횟수 증가
+    		reward = self.rewards['nonprogress'] * self.visit_count[(x, y)]
+    ```
+    
+6. 보상 설정
+    1. 지뢰 선택 시 (---) / 지뢰 아닌 좌표 선택 시 (+) / 승리 시 (++)
+    2. 지뢰 선택 시 (---) / 0을 선택하여 많은 좌표가 열렸을 시 (++) / 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
+    3. 지뢰 선택 시 (---) / 이미 연 좌표 선택 시 (---) / 새로운 0 선택 시 (++) / 새로운 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
+7. Optimizer: Adam과 RMSprop
+8. Net: DNN과 CNN / 기본적인 CNN과 ResNet을 참고한 구조
+9. Learning rate scheduler: lambdaLR → cyclicLR (판 10개) → StepLR
+10. 모델 저장(추론 / 학습 재개를 위해 일반 체크포인트(checkpoint) 저장하기 & 불러오기**)**
+    - 체크포인트 저장하기
+        
+        ```python
+        if epi % CHECKPOINT_INTERVAL == 0:
+            checkpoint_path = f"checkpoint_{epi}.tar"
+            save_checkpoint(agent, agent.optimizer, epi, score, checkpoint_path)
+            print(f"Checkpoint saved at episode {epi} to {checkpoint_path}.")
+        ```
+        
+    - 체크포인트 불러오기
+        
+        ```python
+        checkpoint_path = 'checkpoint_5000.tar'  # 예) 5000번째 에피소드 체크포인트
+        agent, optimizer, start_epoch, last_loss = load_checkpoint(agent, optimizer, checkpoint_path)
+        
+        print(f"Checkpoint loaded from {checkpoint_path}. Starting from epoch {start_epoch}.")
+        ```
+        
+***
+# 코드 속도 개선
+
+1. 리스트와 넘파이 배열
+    
+    `UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at ../torch/csrc/utils/tensor_new.cpp:274.)
+    states = torch.tensor(states, dtype=torch.float32).to(device)` 
+    
+    ```python
+    # Agent 클래스의 train_model() 메서드
+    
+    minibatch = random.sample(self.memory, self.batch_size)
+    states, actions, rewards, next_states, dones = zip(*minibatch)
+    # 여기서 각 요소들 불러오면 리스트로 받아지므로
+    
+    # 넘파이 배열들의 리스트 -> 다차원 넘파이 배열로
+    states = np.array(states)
+    actions = np.array(actions)
+    rewards = np.array(rewards)
+    next_states = np.array(next_states)
+    dones = np.array(dones)
+    ```
+    
+2. BFS
+    - **`auto_reveal_tiles` 메소드 구현 문제**
+        - 재귀 호출 방식 대신 반복문과 큐를 이용하는 방식으로 변경했다.
+        - 기존 코드에서는 재귀 호출 방식 사용 결과, 너무 많은 시간이 소요되는 문제 발생
+        
+        ```python
+        def auto_reveal_tiles(self, x, y):
+                visited = set()  # 중복된 값 허용 X
+                
+                def reveal(x, y):
+                    if (x, y) in visited:
+                        return
+                    visited.add((x, y))
+                    self.playerfield[x, y] = self.minefield[x, y]
+        
+                    # 주변 8개 타일 확인
+                    if self.minefield[x, y] == 0:
+                        for dx in [-1, 0, 1]:
+                            for dy in [-1, 0, 1]:
+                                nx, ny = x + dx, y + dy
+                                # 인덱스가 게임판 범위 내에 있는지 확인
+                                if self.check_boundary(nx, ny) and (nx, ny) not in visited:
+                                    reveal(nx, ny)
+                reveal(x, y)
+                return self.playerfield
+        ```
+        
+        - 큐와 반복문을 이용한 BFS(너비우선탐색) 구조로 변경 ⇒ 속도 개선
+            
+            ```python
+                def auto_reveal_tiles(self, x, y):  # BFS
+                    queue = deque([(x, y)])
+                    self.visited = set()
+            
+                    while queue:
+                        cx, cy = queue.popleft()
+                        self.visited.add((cx, cy))  # (cx, cy) 방문 표시
+                        self.playerfield[cx, cy] = self.minefield[cx, cy]  # (cx, cy) 타일 열기
+                        self.visit_count[(cx, cy)] = self.visit_count.get((cx, cy), 0) + 1  # 방문 횟수 기록
+            
+                        # (cx, cy) 주변 8개 타일 확인, 범위 내에 있으면 큐에 insert
+                        if self.minefield[cx, cy] == 0: 
+                            for dx in [-1, 0, 1]:
+                                for dy in [-1, 0, 1]:
+                                    nx, ny = cx + dx, cy + dy
+                                    # 인덱스가 게임판 범위 내에 있는지 확인
+                                    if self.check_boundary(nx, ny) and (nx, ny) not in self.visited and (nx, ny) not in queue:  # nonvisited 주위 타일 큐에 추가
+                                        queue.append((nx, ny))
+            ```
+                  
+***
+# 최고 성능이 나온 방법론 (모델)
+
+- **Adam optimizer를 이용한 모델**
+
+![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/b665a0c8-4368-46fb-9d5c-ce4ea58fca86/Untitled.png)
+
+- **RMSprop optimizer를 이용한 모델**
+
+![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/f457119c-a946-4bf8-a444-5fac91cb0cb0/Untitled.png)
+
+***
+# 문제 해결 및 개선한 점
+
+- Train의 #safe first click 부분 수정
+    - 기존: 첫 좌표부터 돌면서 -1이 아닌 처음 좌표 선택 → 처음 open하는 좌표가 항상 비슷해짐 (왼쪽 상단 부분에 위치한 좌표들만 선택하게 됨)
+    - 수정: 전체 좌표에서 랜덤 선택 → 지뢰 선택했으면 다시 다른 좌표 랜덤 선택
+    
+    ```python
+    while not done and time_step <= 71:
+            time_step += 1
+            if env.first_move:
+                mine_state = env.minefield.flatten()
+                first_action = random.randint(0, len(mine_state)-1)
+                first_state = mine_state[first_action]
+                while first_state == -1:
+                    first_action = random.randint(0, len(mine_state)-1)
+                    first_state = mine_state[first_action]
+                action = first_action
+                env.first_move = False
+            else:
+                action = agent.get_action(state)
+    ```
+    
+- **score 산정 방식**
+    - step 수가 많을수록 비효율적이라는 점 고려
+    
+    각 에피소드의 전체 보상들의 median으로 설정했더니 대부분 동일한 값이 나오던 문제
+    
+    ⇒ 각 에피소드의 score을 해당 에피소드의 보상 총합으로 수정
+    
+- **가능하면 상수에 대해 하이퍼파라미터 설정**
+    
+     ⇒  코드의 독립성 향상
+    
+- **탐험 부족**
+    - epsilon_decay 값을 늘림→ epsilon이 더 천천히 감소하도록
+    - epsilon_min 값을 줄여 나중에는 정책에 더 의존할 수 있도록
+    - 여러 배치 크기 시도
