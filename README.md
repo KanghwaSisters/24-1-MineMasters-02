@@ -36,7 +36,7 @@ explode = False  # 폭발 여부
 done = False  # 게임 끝 여부
 first_move = True  # 처음 open하는지 여부
 visit_count = {}  # 각 타일의 방문 횟수를 기록
-rewards = {'explode' : -1, 'nonpogress' : -1,'open_nonzero' : 0.1, 'open_zero' : 0.3, 'clear' : 1}
+rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 'clear' : 1}
 ```
 
 - **`grid_size_X`** , **`grid_size_Y`** : 게임판의 가로, 세로 크기
@@ -48,7 +48,7 @@ rewards = {'explode' : -1, 'nonpogress' : -1,'open_nonzero' : 0.1, 'open_zero' :
         0: 지뢰 없음 / 1: 지뢰 있음
         
         - **type:** np.array
-        - **구조:** grid_size x grid_size 크기의 2D NumPy 배열
+        - **구조:** grid_size_X x grid_size_Y 크기의 2D NumPy 배열
         - **초기값:** 모든 셀이 0
         - 이후 reset() 내 place_mines()에서 지뢰를 심는다. (-1로 update)
     - **`playerfield`** : 플레이어가 보는 지뢰밭 상태
@@ -58,7 +58,7 @@ rewards = {'explode' : -1, 'nonpogress' : -1,'open_nonzero' : 0.1, 'open_zero' :
         0~8은 인접한 지뢰 개수를 나타낸다.
         
         - **type:** np.array
-        - **구조:** grid_size x grid_size 크기의 2D NumPy 배열
+        - **구조:** grid_size_X x grid_size_Y 크기의 2D NumPy 배열
         - **초기값:** 모든 셀이 9
 - **게임 진행 관련 변수들**
     - **`explode`**: 플레이어가 지뢰를 밟았는지 여부
@@ -67,9 +67,9 @@ rewards = {'explode' : -1, 'nonpogress' : -1,'open_nonzero' : 0.1, 'open_zero' :
 - 이때 **`action`** 은 에이전트가 playerfield에서 선택한 좌표로 정의한다.
 - 보상 **`rewards`**
     - 'explode' : -1
-    - 'nonprogress' : -1
-    - 'open_nonzero' : 0.1
-    - 'open_zero' : 0.3
+    - 'noprogress' : -1
+    - 'guess' : 0.1
+    - 'progress' : 0.3
     - 'clear' : 1
 
 ## Methods
