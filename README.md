@@ -842,13 +842,17 @@ class MineSweeper(nn.Module):
 ***
 # 최고 성능이 나온 모델
 
-- **Adam optimizer를 이용한 모델**
+## 1.
 
-![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/b665a0c8-4368-46fb-9d5c-ce4ea58fca86/Untitled.png)
+- 할인율(DISCOUNT_FACTOR)를 0.99에서 0.1로 변경하였다.
+- Net의 Convolution layer 중간에 Max pooling layer를 추가하고 Dropout의 파라미터를 0.5로 설정했다.
+- Hidden tile (-1), Mine (-2) 로 하여 state 정규화를 state를 8로 나누어 진행했다.
 
-- **RMSprop optimizer를 이용한 모델**
+![19-4-win_rate](https://github.com/user-attachments/assets/c6b59e30-218c-4f43-86dc-ee20ce37087b)
 
-![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/f457119c-a946-4bf8-a444-5fac91cb0cb0/Untitled.png)
+![19-4-score](https://github.com/user-attachments/assets/739ca8fa-0538-4988-ba05-0cf9191d47be)
+
+![19-4-timesteps](https://github.com/user-attachments/assets/42548df3-8c31-4848-b4de-ddf7aac1ba9a)
 
 ***
 # 문제 해결 및 개선한 점
