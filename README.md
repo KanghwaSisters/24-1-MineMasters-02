@@ -25,20 +25,6 @@
 
 ## Attributes
 
-```python
-grid_size_X = 9
-grid_size_Y = 9
-num_mines = 10
-minefield = np.zeros((self.grid_size_X, self.grid_size_Y), dtype=int)
-playerfield = np.full((self.grid_size_X, self.grid_size_Y), 9, dtype=int)
-state_size = self.minefield.size  # (9*9 = 81 반환)
-explode = False  # 폭발 여부
-done = False  # 게임 끝 여부
-first_move = True  # 처음 open하는지 여부
-visit_count = {}  # 각 타일의 방문 횟수를 기록
-rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 'clear' : 1}
-```
-
 - **`grid_size_X`** , **`grid_size_Y`** : 게임판의 가로, 세로 크기
 - **`num_mines`** : 지뢰 개수
 - **state**
@@ -55,7 +41,7 @@ rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 
         0~8은 인접한 지뢰 개수를 나타낸다.
         
         - **type:** np.array
-        - **구조:** grid_size_X x grid_size_Y 크기의 2D NumPy 배열
+        - **구조:** `grid_size_X` x `grid_size_Y` 크기의 2D NumPy 배열
         - **초기값:** 모든 셀이 9
 - **게임 진행 관련 변수들**
     - **`explode`**: 플레이어가 지뢰를 밟았는지 여부
@@ -67,7 +53,10 @@ rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 
     | --- | --- | --- | --- | --- |
     | -1 | -1 | 0.1 | 0.3 | 1 |
     - 'guess' : 0.1
+        - 주변을 둘러싼 타일들이 전부 hidden tile인 경우 (아무런 정보 없이 찍었다고 간주함)
     - 'progress' : 0.3
+        - 주변을 둘러싼 타일 중에 하나라도 open된 타일이 있는 경우
+        - 가장자리 타일은 주변을 둘러싼 타일이 5개 / 꼭짓점 타일은 3개
 
 ## Methods
 
@@ -80,34 +69,31 @@ class Environment:
         self.grid_size_Y = 9
         self.num_mines = 10
 
-        # 실제 정답 minefield 초기화
         self.minefield = np.zeros((self.grid_size_X, self.grid_size_Y), dtype=int)
 
-        # 실제 정답 playerfield 초기화: hidden(9) 상태로
         self.playerfield = np.full((self.grid_size_X, self.grid_size_Y), 9, dtype=int)
 
-        self.state_size = self.minefield.size  # (9*9 = 81 반환)
+        self.state_size = self.minefield.size
 
-        self.explode = False  # 폭발 여부
-        self.done = False  # 게임 끝 여부
-        self.first_move = True  # 처음 open하는지 여부
-
+        self.explode = False
+        self.done = False
+        self.first_move = True
         self.visited = set()
 
-        self.rewards = {'explode' : -1, 'nonprogress' : -1,'open_nonzero' : 0.1, 'open_zero' : 0.3, 'clear' : 1}
+        self.rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 'clear' : 1}
 ```
 
 - **`reset`**: 에피소드를 초기 상태로 되돌리는 역할
     
     새로운 게임에 필요한 지뢰를 배치하고, 새로운 playerfield 를 제공한다.
     
-    - `place_mines()`  : 지뢰 개수만큼 임의의 좌표에 지뢰를 심은 후, 지뢰가 없는 좌표에 대해서는 인접한 지뢰개수를 playerfield에 update한다.
+    - `place_mines`  : 지뢰 개수만큼 임의의 좌표에 지뢰를 심은 후, 지뢰가 없는 좌표에 대해서는 인접한 지뢰개수를 playerfield에 update한다.
     - `count_adjacent_mines` : 인접한 지뢰 개수를 세는 메소드
 
 ```python
     def reset(self):
         self.minefield = np.zeros((self.grid_size_X, self.grid_size_Y), dtype=int)
-        self.playerfield = np.full((self.grid_size_X, self.grid_size_Y), 9, dtype=int)  # Hidden 상태로 초기화
+        self.playerfield = np.full((self.grid_size_X, self.grid_size_Y), 9, dtype=int)
 
         self.explode = False
         self.done = False
@@ -118,6 +104,35 @@ class Environment:
         self.place_mines()
 
         return list(self.playerfield)
+```
+```python
+    def place_mines(self):
+        mines_placed = 0
+
+        # num_mines만큼 임의의 좌표에 지뢰 심기
+        while mines_placed < self.num_mines:
+            x = random.randint(0, self.grid_size_X - 1)
+            y = random.randint(0, self.grid_size_Y - 1)
+
+            if self.minefield[x, y] == 0:
+                self.minefield[x, y] = -1
+                mines_placed += 1
+
+        # 지뢰 없는 좌표: 인접 지뢰 개수 세기
+        for x in range(self.grid_size_X):
+            for y in range(self.grid_size_Y):
+                if self.minefield[x, y] == -1:
+                    continue
+                self.minefield[x, y] = self.count_adjacent_mines(x, y)
+
+    def count_adjacent_mines(self, x, y):
+        count = 0
+        # (x,y) 주변 지뢰 개수
+        for i in range(max(0, x - 1), min(self.grid_size_X, x + 2)):
+            for j in range(max(0, y - 1), min(self.grid_size_Y, y + 2)):
+                if (i, j) != (x, y) and self.minefield[i, j] == -1:
+                    count += 1
+        return count
 ```
 
 - **`step`**: 에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
@@ -138,17 +153,15 @@ class Environment:
                 2. 선택한 좌표가 처음 open된 좌표인 경우
                     1. visited 배열에 타일 추가
                     2. 타일 open (playerfield의 좌표에 minefield의 해당좌표 값을 복사)
-                        1. open 한 타일이 0인 경우
+                        1-1. open 한 타일이 주변이 전부 hidden인 경우
+                            - reward로 rewards[’guess’] 부여
                             
-                            reward로 rewards[’open_zero’]  반환하고, `auto_reveal_tiles()` 를 이용하여 주위 타일 연쇄적으로 열기 
-                            
-                        2. open 한 타일이 0이 아닌 경우
-                            
-                            reward로 rewards[’open_zero’]  반환
-                            
-                    3. hidden_tile(9)가 남아있는 경우 done=False, 남아있지 않은 경우 done=True 반환
-                    4. next_state 로 playerfield 반환
-                    
+                        1-2. open 한 타일 주변에 이미 open된 타일이 있는 경우
+                            - reward로 rewards[’progress’]  부여
+              
+                        2. open 한 타일이 0이면 주위 타일 open
+                        3. hidden tile(9)이 남아있는 경우 done=False, 남아있지 않은 경우 done=True 반환
+                    	4. next_state 로 playerfield 반환
 
 ```python
 def step(self, action):
@@ -189,12 +202,14 @@ def step(self, action):
         return next_state, reward, done
 ```
 
-- 타일을 open할 때 필요한 메소드들
+- 타일을 open할 때 필요한 메서드
     - `check_boundary` : open할 타일이 게임판을 벗어나지 않도록
     - `auto_reveal_tiles`  : 0을 선택한 경우 연쇄적으로 주위 타일을 전부 open
-        - `visit_count`: 해당 타일을 몇 번 visit 했는지
         - BFS 구조
         - 주변 8개 타일의 숫자 확인, 게임판을 벗어나지 않고 방문하지 않은 경우 큐에 추가
+     
+- 선택한 타일 주변 hidden tile 개수를 세는 데에 필요한 메서드
+    - `count_adjacent_hidden`
 
 ```python
     def check_boundary(self, x, y):
