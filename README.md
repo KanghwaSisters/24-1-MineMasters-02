@@ -60,7 +60,8 @@
 
 ## Methods
 
-### 1. **`__init__`**: 게임판 크기, minefield 크기, playerfield 크기, state 크기, 폭발 여부, done 여부, 첫 스텝 여부, 방문 좌표 set, reward 배열 등의 변수를 초기화한다.
+### 1. **`__init__`**: 
+게임판 크기, minefield 크기, playerfield 크기, state 크기, 폭발 여부, done 여부, 첫 스텝 여부, 방문 좌표 set, reward 배열 등의 변수를 초기화한다.
 
 ```python
 class Environment:
@@ -83,7 +84,8 @@ class Environment:
         self.rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 'clear' : 1}
 ```
 
-### 2. **`reset`**: 에피소드를 초기 상태로 되돌리는 역할
+### 2. **`reset`**: 
+에피소드를 초기 상태로 되돌리는 역할
     
     새로운 게임에 필요한 지뢰를 배치하고, 새로운 playerfield 를 제공한다.
     
@@ -135,7 +137,8 @@ class Environment:
         return count
 ```
 
-### 3. **`step`**: 에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
+### 3. **`step`**: 
+에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
     - next_state, reward, done 반환
     - 동작 과정
         1. 1차원 인덱스 `action` 를 2차원 좌표로 변환한다. 
@@ -255,7 +258,8 @@ def step(self, action):
                             queue.append((nx, ny))
 ```
 
-### 4. **`render`** : 특정 시점에 `playerfield` 게임판의 상태를 render
+### 4. **`render`** : 
+특정 시점에 `playerfield` 게임판의 상태를 render
     - hidden tile: **.**
     - mine: X
     - 나머지: 0~8 (인접한 지뢰수)
