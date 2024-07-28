@@ -539,27 +539,27 @@ class MineSweeper(nn.Module):
         - 재귀 호출 방식 대신 반복문과 큐를 이용하는 방식으로 변경했다.
         - 기존 코드에서는 재귀 호출 방식 사용 결과, 너무 많은 시간이 소요되는 문제 발생
         
-        ```python
-        def auto_reveal_tiles(self, x, y):
-                visited = set()  # 중복된 값 허용 X
-                
-                def reveal(x, y):
-                    if (x, y) in visited:
-                        return
-                    visited.add((x, y))
-                    self.playerfield[x, y] = self.minefield[x, y]
-        
-                    # 주변 8개 타일 확인
-                    if self.minefield[x, y] == 0:
-                        for dx in [-1, 0, 1]:
-                            for dy in [-1, 0, 1]:
-                                nx, ny = x + dx, y + dy
-                                # 인덱스가 게임판 범위 내에 있는지 확인
-                                if self.check_boundary(nx, ny) and (nx, ny) not in visited:
-                                    reveal(nx, ny)
-                reveal(x, y)
-                return self.playerfield
-        ```
+            ```python
+            def auto_reveal_tiles(self, x, y):
+                    visited = set()  # 중복된 값 허용 X
+                    
+                    def reveal(x, y):
+                        if (x, y) in visited:
+                            return
+                        visited.add((x, y))
+                        self.playerfield[x, y] = self.minefield[x, y]
+            
+                        # 주변 8개 타일 확인
+                        if self.minefield[x, y] == 0:
+                            for dx in [-1, 0, 1]:
+                                for dy in [-1, 0, 1]:
+                                    nx, ny = x + dx, y + dy
+                                    # 인덱스가 게임판 범위 내에 있는지 확인
+                                    if self.check_boundary(nx, ny) and (nx, ny) not in visited:
+                                        reveal(nx, ny)
+                    reveal(x, y)
+                    return self.playerfield
+            ```
         
         - 큐와 반복문을 이용한 BFS(너비우선탐색) 구조로 변경 ⇒ 속도 개선
             
@@ -591,13 +591,13 @@ class MineSweeper(nn.Module):
     
     단순한 구조의 DNN을 net으로 사용하고 learning rate scheduler가 lambdaLR일 때는  학습 시 거의 한 번도 승리하지 못하다가, CNN과 cyclicLR으로 변경하니 50000 에피소드로 학습 시 평균 승률 3.6%를 웃돌았다.
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/095f9517-9925-478d-83e9-5cbc891249d4/Untitled.png)
+    ![10-highest_win_rate](https://github.com/user-attachments/assets/449a6fd3-38a6-48f5-8b45-48cb35f0f523)
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/0aaaf646-9883-4685-bd1f-552d37e9d06a/Untitled.png)
+    ![10-timesteps](https://github.com/user-attachments/assets/60eab1f8-aa81-4cff-967e-530639f6b268)
+   
+    ![10-score](https://github.com/user-attachments/assets/22b6c5eb-fdb3-468b-8306-d7463eb8d704)
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/eedd1f14-4404-4e1a-9d59-62c9e4ec364c/Untitled.png)
-    
-2. **state 정규화**
+3. **state 정규화**
     
     Net의 input으로 이용할 state를 정규화하였다.
     
@@ -637,7 +637,7 @@ class MineSweeper(nn.Module):
                 agent.append_sample(state, action, reward, scaled_state, done)
         ```
         
-3. **validation - 과적합 문제**
+4. **validation - 과적합 문제**
     
     train에 비해 test의 성능이 현저하게 떨어지는 문제 발생
     
@@ -721,13 +721,13 @@ class MineSweeper(nn.Module):
     ```
     
     - 10만 번~20만 번의 에피소드로 모델을 학습시키면서 최대한 비용(Cost)를 절감하기 위해 최종 모델에서는 validation을 사용하지 않았다.
-4. 에이전트가 **같은 타일을 선택**할 수 있게 할 것인가?
+5. 에이전트가 **같은 타일을 선택**할 수 있게 할 것인가?
     - 한 에피소드 내에서 한 번 선택한 타일은 이후의 time step에서 선택하지 못하도록 하는 방법: 오히려 에이전트가 ‘이미 연 타일을 반복해서 선택하는 것은 좋지 않은 행동’임을 학습하는 걸 방해하는 것이라고 생각하게 되었다.
     - 하지만 같은 타일을 계속 선택하다 보면 time step이 엄청나게 길어질 수 있다.
         
         → 최대 time step 71(81-10)으로 제한했다. (멈춤 조건 설정)
         
-5. 지뢰를 선택했을 때와 방문했던 좌표를 또 선택할 때의 보상이 동일함에도 불구하고, 학습이 진행됨에 따라 지뢰는 거의 선택하지 않는데 이미 갔던 (안전하다고 판단하는) 좌표는 계속 방문하는 문제 발생: 
+6. 지뢰를 선택했을 때와 방문했던 좌표를 또 선택할 때의 보상이 동일함에도 불구하고, 학습이 진행됨에 따라 지뢰는 거의 선택하지 않는데 이미 갔던 (안전하다고 판단하는) 좌표는 계속 방문하는 문제 발생: 
     
     이미 방문한 타일을 다시 방문할 때마다 페널티를 점진적으로 증가시키는 방법을 사용하여 에이전트가 동일한 타일을 반복해서 방문하지 않도록 시도해보았다.
     
@@ -743,15 +743,15 @@ class MineSweeper(nn.Module):
     
     방문 타일 보상 페널티 누적 여부에 따라 성능이 크게 달라지지 않았다.
     
-6. 보상 설정
+7. 보상 설정
     1. 지뢰 선택 시 (---) / 지뢰 아닌 좌표 선택 시 (+) / 승리 시 (++)
     2. 지뢰 선택 시 (---) / 0을 선택하여 많은 좌표가 열렸을 시 (++) / 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
     3. 지뢰 선택 시 (---) / 이미 연 좌표 선택 시 (---) / 새로운 0 선택 시 (++) / 새로운 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
     
     최종 모델에는 c.의 보상 설정 방식을 선정했다.
     
-7. Optimizer: Adam과 RMSprop
-8. Net: DNN과 CNN / 기본적인 CNN과 ResNet을 참고한 구조
+8. Optimizer: Adam과 RMSprop
+9. Net: DNN과 CNN / 기본적인 CNN과 ResNet을 참고한 구조
     
     ```python
     class ResidualBlock(nn.Module):
@@ -820,8 +820,8 @@ class MineSweeper(nn.Module):
     
     Residual Learning을 이용한 Net을 사용한 경우, 모델이 무거워지고 그렇다고 해서 성능이 크게 향상되지도 않았기 때문에 최종 모델에는 사용하지 않았다.
     
-9. Learning rate scheduler: lambdaLR / cyclicLR / StepLR
-10. 모델 저장(추론 / 학습 재개를 위해 일반 체크포인트(checkpoint) 저장하기 & 불러오기**)**
+10. Learning rate scheduler: lambdaLR / cyclicLR / StepLR
+11. 모델 저장(추론 / 학습 재개를 위해 일반 체크포인트(checkpoint) 저장하기 & 불러오기**)**
     - 체크포인트 저장하기
         
         ```python
