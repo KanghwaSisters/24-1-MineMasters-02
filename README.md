@@ -33,7 +33,7 @@
         
         - **type:** np.array
         - **구조:** `grid_size_X` x `grid_size_Y` 크기의 2D NumPy 배열
-        - 초기값: 모든 셀이 0 -> 이후 reset() 내 place_mines()에서 지뢰를 심는다. (-1로 update)
+        - 초기값: 모든 셀이 0 → 이후 reset() 내 place_mines()에서 지뢰를 심는다. (-1로 update)
     - **`playerfield`** : 플레이어가 보는 지뢰밭 상태
         
         *-1(mine), 0, 1, 2, 3, 4, 5, 6, 7, 8, 9(hidden)* 
@@ -142,26 +142,22 @@ class Environment:
     - next_state, reward, done 반환
     - 동작 과정
         1. 1차원 인덱스 `action` 를 2차원 좌표로 변환한다. 
-            
             (minefield, playerfield 모두 2차원이기 때문에)
-            
         2. 선택한 좌표 (x,y)가 지뢰인지 여부를 minefield에서 확인
-            1. 지뢰(-1)인 경우 
-                1. done, explode, reward 로 각각 True, True, rewards[’explode’] 반환
-                2. 게임 패배
-            2. 지뢰(-1)가 아닌 경우
-                1. 선택한 좌표가 이미 open된 좌표인 경우
+            1) 지뢰(-1)인 경우 
+                - done, explode, reward 로 각각 True, True, rewards[’explode’] 반환
+                - 게임 패배
+            2) 지뢰(-1)가 아닌 경우
+                i) 선택한 좌표가 이미 open된 좌표인 경우
                     1. done, explode, reward 로 각각 False, False, rewards[’nonprogress’] 반환
                     2. next_state 로 player_field 반환
-                2. 선택한 좌표가 처음 open된 좌표인 경우
+                ii) 선택한 좌표가 처음 open된 좌표인 경우
                     1. visited 배열에 타일 추가
                     2. 타일 open (playerfield의 좌표에 minefield의 해당좌표 값을 복사)
                         1-1. open 한 타일이 주변이 전부 hidden인 경우
                             - reward로 rewards[’guess’] 부여
-                            
                         1-2. open 한 타일 주변에 이미 open된 타일이 있는 경우
                             - reward로 rewards[’progress’]  부여
-              
                         2. open 한 타일이 0이면 주위 타일 open
                         3. hidden tile(9)이 남아있는 경우 done=False, 남아있지 않은 경우 done=True 반환
                     	4. next_state 로 playerfield 반환
