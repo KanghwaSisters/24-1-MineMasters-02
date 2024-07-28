@@ -86,11 +86,9 @@ class Environment:
 
 ### 2. **`reset`**: 
 에피소드를 초기 상태로 되돌리는 역할
-    
-    새로운 게임에 필요한 지뢰를 배치하고, 새로운 playerfield 를 제공한다.
-    
-    - `place_mines`  : 지뢰 개수만큼 임의의 좌표에 지뢰를 심은 후, 지뢰가 없는 좌표에 대해서는 인접한 지뢰개수를 playerfield에 update한다.
-    - `count_adjacent_mines` : 인접한 지뢰 개수를 세는 메소드
+새로운 게임에 필요한 지뢰를 배치하고, 새로운 playerfield 를 제공한다.
+- `place_mines`  : 지뢰 개수만큼 임의의 좌표에 지뢰를 심은 후, 지뢰가 없는 좌표에 대해서는 인접한 지뢰개수를 playerfield에 update한다.
+- `count_adjacent_mines` : 인접한 지뢰 개수를 세는 메소드
 
 ```python
     def reset(self):
@@ -220,7 +218,6 @@ def step(self, action):
         next_state = self.playerfield
         return next_state, reward, done
 ```
-
 - 타일을 open할 때 필요한 메서드
     - `check_boundary` : open할 타일이 게임판을 벗어나지 않도록
     - `auto_reveal_tiles`  : 0을 선택한 경우 연쇄적으로 주위 타일을 전부 open
@@ -236,22 +233,30 @@ def step(self, action):
 
     def auto_reveal_tiles(self, x, y):  # BFS
         queue = deque([(x, y)])
-        self.visited = set()
 
         while queue:
             cx, cy = queue.popleft()
             self.visited.add((cx, cy))  # (cx, cy) 방문 표시
             self.playerfield[cx, cy] = self.minefield[cx, cy]  # (cx, cy) 타일 열기
-            self.visit_count[(cx, cy)] = self.visit_count.get((cx, cy), 0) + 1  # 방문 횟수 기록
 
             # (cx, cy) 주변 8개 타일 확인, 범위 내에 있으면 큐에 insert
-            if self.minefield[cx, cy] == 0: 
+            if self.minefield[cx, cy] == 0: # 방문하지 않았으면 open
                 for dx in [-1, 0, 1]:
                     for dy in [-1, 0, 1]:
                         nx, ny = cx + dx, cy + dy
                         # 인덱스가 게임판 범위 내에 있는지 확인
                         if self.check_boundary(nx, ny) and (nx, ny) not in self.visited and (nx, ny) not in queue:  # nonvisited 주위 타일 큐에 추가
                             queue.append((nx, ny))
+```
+```python
+    def count_adjacent_hidden(self, x, y):
+        count = 0
+        # (x,y) 주변 hidden tile 개수
+        for i in range(max(0, x - 1), min(self.grid_size_X, x + 2)):
+            for j in range(max(0, y - 1), min(self.grid_size_Y, y + 2)):
+                if (i, j) != (x, y) and self.playerfield[i, j] == 9:
+                    count += 1
+        return count
 ```
 
 ### 4. **`render`** : 
