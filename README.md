@@ -512,177 +512,6 @@ class MineSweeper(nn.Module):
 - CheckPoint마다 모델을 저장했다.
   
 ***
-# 시도한 방법론 분석 아이디어 및 결과
-
-1. 먼저 **게임판을 10개로 한정**하여 성능(승률)을 높이는 것을 시도함
-    
-    단순한 구조의 DNN을 net으로 사용하고 learning rate scheduler가 lambdaLR일 때는  학습 시 거의 한 번도 승리하지 못하다가, CNN과 cyclicLR으로 변경하니 50000 에피소드로 학습 시 평균 승률 3.6%를 웃돌았다.
-    
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/095f9517-9925-478d-83e9-5cbc891249d4/Untitled.png)
-    
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/0aaaf646-9883-4685-bd1f-552d37e9d06a/Untitled.png)
-    
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/eedd1f14-4404-4e1a-9d59-62c9e4ec364c/Untitled.png)
-    
-2. **state 정규화** :
-    
-    Net의 input으로 이용할 state를 0~1 사이 값들로 정규화 하였다.
-    
-    - **정규화의 목적**
-    
-    ![출처) https://hyen4110.tistory.com/m/20](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/41456955-2188-49cb-ba8e-649158c09337/Untitled.png)
-    
-    출처) https://hyen4110.tistory.com/m/20
-    
-    - **state 정규화를 시행한 위치**
-        
-        정규화를 step에서 하면 다음 step의 state가 scaled_state가 되는 문제 발생
-        
-        (state과 scaled_state 간의 구분 불가)
-        
-        ⇒ env.step() 대신 학습 루프에 scaled_state를 정의
-        
-        ```python
-        for epi in range(EPISODES):
-        		...
-            state = env.reset() # 2차원 배열 state
-        
-            while not done and time_step <= 71:
-                time_step += 1
-                if env.first_move:
-                    mine_state = env.minefield.flatten()
-                    first_action = random.randint(0, len(mine_state)-1)
-                    first_state = mine_state[first_action]
-                    while first_state == -1:
-                        first_action = random.randint(0, len(mine_state)-1)
-                        first_state = mine_state[first_action]
-                    action = first_action
-                    env.first_move = False
-                else:
-                    action = agent.get_action(state)
-                   
-                next_state, reward, done = env.step(action)
-        
-                # state (신경망의 input) 정규화
-                scaled_state = (next_state - (-1)) / (8 - (-1))
-        
-                agent.append_sample(state, action, reward, scaled_state, done)
-        ```
-        
-3. **validation - 과적합 문제**
-    
-    train에 비해 test의 성능이 현저하게 떨어지는 문제 발생
-    
-    ![Train](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/491c0216-73ac-4368-b2d0-db407e5bf0a8/Untitled.png)
-    
-    Train
-    
-    ![Test](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/2e14f2a6-2130-4512-afc9-b8350a1f4ee9/Untitled.png)
-    
-    Test
-    
-    ⇒ validation 코드를 추가하여 과적합을 방지하고자 함
-    
-    ```python
-    class ValidationEnvironment(Environment):
-        def __init__(self):
-            super().__init__()
-    ```
-    
-    ```python
-    class MineSweeper(nn.Module):
-    		...
-    		def validate_model(self, validation_env, episodes=100):
-    	      self.model.eval()
-            total_score = 0
-            total_wins = 0
-    
-            for epi in range(episodes):
-                state = validation_env.reset()
-                done = False
-                score = 0
-    
-                while not done:
-                    action = self.get_action(state)
-                    next_state, reward, done = validation_env.step(action)
-                    score += reward
-                    state = next_state
-    
-                total_score += score
-                if not validation_env.explode:
-                    total_wins += 1
-    
-            avg_score = total_score / episodes
-            win_rate = (total_wins / episodes) * 100
-    
-            print(f"Validation results over {episodes} episodes:")
-            print(f"Average score: {avg_score:.2f}")
-            print(f"Win rate: {win_rate:.2f}%")
-    
-            self.model.train()
-    ```
-    
-    ```python
-        if epi < 20000:
-            validation_interval = VALIDATION_INTERVAL_INITIAL
-        elif epi < 60000:
-            validation_interval = VALIDATION_INTERVAL_MIDDLE
-        else:
-            validation_interval = VALIDATION_INTERVAL_LATE
-    
-        if epi % validation_interval == 0:
-            print(f"Performing validation at episode {epi}...")
-            agent.validate_model(validation_env, episodes=100)
-            print("Validation complete.")
-    ```
-    
-4. 에이전트가 같은 타일을 선택할 수 있게 할 것인가?
-    - 한 에피소드 내에서 한 번 선택한 타일은 이후의 time step에서 선택하지 못하도록 하는 방법: 오히려 에이전트가 ‘이미 연 타일을 반복해서 선택하는 것은 좋지 않은 행동’임을 학습하는 걸 방해하는 것이라고 생각하게 되었다.
-    - 하지만 같은 타일을 계속 선택하다 보면 time step이 엄청나게 길어질 수 있음
-        
-        → 최대 time step 71(81-10)으로 제한했다. (멈춤 조건 설정)
-        
-5. 지뢰를 선택했을 때와 방문했던 좌표를 또 선택할 때의 보상이 동일함에도 불구하고, 학습이 진행됨에 따라 지뢰는 거의 선택하지 않는데 이미 갔던 (안전하다고 판단하는) 좌표는 계속 방문하는 문제 발생: 
-    
-    이미 방문한 타일을 다시 방문할 때마다 페널티를 점진적으로 증가시키는 방법을 사용하여 에이전트가 동일한 타일을 반복해서 방문하지 않도록 시도해보았다.
-    
-    ```python
-    self.visit_count = {}
-    
-    self.rewards = {'explode' : -1, 'nonprogress' : -1,'open_nonzero' : 0.1, 'open_zero' : 0.3, 'clear' : 1}
-    
-    if (x, y) in self.visit_count:  # 선택한 좌표 (x,y)가 이미 방문된 경우
-    		self.visit_count[(x, y)] += 1  # 방문 횟수 증가
-    		reward = self.rewards['nonprogress'] * self.visit_count[(x, y)]
-    ```
-    
-6. 보상 설정
-    1. 지뢰 선택 시 (---) / 지뢰 아닌 좌표 선택 시 (+) / 승리 시 (++)
-    2. 지뢰 선택 시 (---) / 0을 선택하여 많은 좌표가 열렸을 시 (++) / 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
-    3. 지뢰 선택 시 (---) / 이미 연 좌표 선택 시 (---) / 새로운 0 선택 시 (++) / 새로운 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
-7. Optimizer: Adam과 RMSprop
-8. Net: DNN과 CNN / 기본적인 CNN과 ResNet을 참고한 구조
-9. Learning rate scheduler: lambdaLR → cyclicLR (판 10개) → StepLR
-10. 모델 저장(추론 / 학습 재개를 위해 일반 체크포인트(checkpoint) 저장하기 & 불러오기**)**
-    - 체크포인트 저장하기
-        
-        ```python
-        if epi % CHECKPOINT_INTERVAL == 0:
-            checkpoint_path = f"checkpoint_{epi}.tar"
-            save_checkpoint(agent, agent.optimizer, epi, score, checkpoint_path)
-            print(f"Checkpoint saved at episode {epi} to {checkpoint_path}.")
-        ```
-        
-    - 체크포인트 불러오기
-        
-        ```python
-        checkpoint_path = 'checkpoint_5000.tar'  # 예) 5000번째 에피소드 체크포인트
-        agent, optimizer, start_epoch, last_loss = load_checkpoint(agent, optimizer, checkpoint_path)
-        
-        print(f"Checkpoint loaded from {checkpoint_path}. Starting from epoch {start_epoch}.")
-        ```
-        
-***
 # 코드 속도 개선
 
 1. 리스트와 넘파이 배열
@@ -706,7 +535,7 @@ class MineSweeper(nn.Module):
     ```
     
 2. BFS
-    - **`auto_reveal_tiles` 메소드 구현 문제**
+    - **`auto_reveal_tiles` 메서드 구현 문제**
         - 재귀 호출 방식 대신 반복문과 큐를 이용하는 방식으로 변경했다.
         - 기존 코드에서는 재귀 호출 방식 사용 결과, 너무 많은 시간이 소요되는 문제 발생
         
@@ -754,7 +583,262 @@ class MineSweeper(nn.Module):
                                     if self.check_boundary(nx, ny) and (nx, ny) not in self.visited and (nx, ny) not in queue:  # nonvisited 주위 타일 큐에 추가
                                         queue.append((nx, ny))
             ```
-                  
+            
+***
+# 시도한 방법론, 아이디어 결과 및 분석
+
+1. 먼저 **게임판을 10개로 한정**하여 성능(승률)을 높이는 것을 시도함
+    
+    단순한 구조의 DNN을 net으로 사용하고 learning rate scheduler가 lambdaLR일 때는  학습 시 거의 한 번도 승리하지 못하다가, CNN과 cyclicLR으로 변경하니 50000 에피소드로 학습 시 평균 승률 3.6%를 웃돌았다.
+    
+    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/095f9517-9925-478d-83e9-5cbc891249d4/Untitled.png)
+    
+    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/0aaaf646-9883-4685-bd1f-552d37e9d06a/Untitled.png)
+    
+    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/eedd1f14-4404-4e1a-9d59-62c9e4ec364c/Untitled.png)
+    
+2. **state 정규화**
+    
+    Net의 input으로 이용할 state를 정규화하였다.
+    
+    - **정규화의 목적** : 그래디언트 소실 및 폭파 문제가 발생하지 않도록 input의 절댓값을 특정 범위로 제한하기 때문에 그래디언트가 saturate되지 않도록 하여 더 빠른 최적화가 가능해진다.
+    - **state 정규화를 시행한 위치**
+        
+        정규화를 step에서 하면 다음 step의 state가 scaled_state가 되는 문제 발생
+        
+        (state과 scaled_state 간의 구분 불가)
+        
+        ⇒ env.step() 대신 학습 루프에 scaled_state를 정의
+        
+        ```python
+        for epi in range(EPISODES):
+        		...
+            state = env.reset() # 2차원 배열 state
+        
+            while not done and time_step <= 71:
+                time_step += 1
+                if env.first_move:
+                    mine_state = env.minefield.flatten()
+                    first_action = random.randint(0, len(mine_state)-1)
+                    first_state = mine_state[first_action]
+                    while first_state == -1:
+                        first_action = random.randint(0, len(mine_state)-1)
+                        first_state = mine_state[first_action]
+                    action = first_action
+                    env.first_move = False
+                else:
+                    action = agent.get_action(state)
+                   
+                next_state, reward, done = env.step(action)
+        
+                # state (신경망의 input) 정규화
+                scaled_state = (next_state - (-1)) / (8 - (-1))
+        
+                agent.append_sample(state, action, reward, scaled_state, done)
+        ```
+        
+3. **validation - 과적합 문제**
+    
+    train에 비해 test의 성능이 현저하게 떨어지는 문제 발생
+    
+    ![Train](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/491c0216-73ac-4368-b2d0-db407e5bf0a8/Untitled.png)
+    
+    Train
+    
+    ![Test](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/2e14f2a6-2130-4512-afc9-b8350a1f4ee9/Untitled.png)
+    
+    Test
+    
+    ⇒ validation 코드를 추가하여 과적합을 방지하고자 하였다.
+    
+    - validation 환경에서 에이전트를 평가하고 평균 점수와 승률을 출력한다.
+    - 학습 중간중간 에이전트의 성능을 체크하며, 최적의 하이퍼파라미터를 선택하거나 모델이 과적합되지 않도록 방지하는 데 도움이 되는 Validation을 추가했다.
+    - 학습 시 초기 에피소드들에서는 탐험을 통해 학습이 빠르게 변할 수 있으므로 더 자주 Validation을 하는 것이 좋을 것 같다고 생각해서 초기의 Validation 주기를 1000으로 설정했다.
+    - Validation
+        - 20000번째 에피소드 전까지는 1000을 주기로,
+        - 60000번째 에피소드 전까지는 5000을 주기로,
+        - 이후에는 20000을 주기로 validation
+    
+    ```python
+    class ValidationEnvironment(Environment):
+        def __init__(self):
+            super().__init__()
+    ```
+    
+    ```python
+    class MineSweeper(nn.Module):
+    		...
+    		def validate_model(self, validation_env, episodes=100):
+    	      self.model.eval()
+            total_score = 0
+            total_wins = 0
+    
+            for epi in range(episodes):
+                state = validation_env.reset()
+                done = False
+                score = 0
+    
+                while not done:
+                    action = self.get_action(state)
+                    next_state, reward, done = validation_env.step(action)
+                    score += reward
+                    state = next_state
+    
+                total_score += score
+                if not validation_env.explode:
+                    total_wins += 1
+    
+            avg_score = total_score / episodes
+            win_rate = (total_wins / episodes) * 100
+    
+            print(f"Validation results over {episodes} episodes:")
+            print(f"Average score: {avg_score:.2f}")
+            print(f"Win rate: {win_rate:.2f}%")
+    
+            self.model.train()
+    ```
+    
+    ```python
+    VALIDATION_INTERVAL_INITIAL = 1000
+    VALIDATION_INTERVAL_MIDDLE = 5000
+    VALIDATION_INTERVAL_LATE = 20000
+    
+    validation_env = ValidationEnvironment()
+    
+    ...
+        
+        if epi < 20000:
+            validation_interval = VALIDATION_INTERVAL_INITIAL
+        elif epi < 60000:
+            validation_interval = VALIDATION_INTERVAL_MIDDLE
+        else:
+            validation_interval = VALIDATION_INTERVAL_LATE
+    
+        if epi % validation_interval == 0:
+            print(f"Performing validation at episode {epi}...")
+            agent.validate_model(validation_env, episodes=100)
+            print("Validation complete.")
+    ```
+    
+    - 10만 번~20만 번의 에피소드로 모델을 학습시키면서 최대한 비용(Cost)를 절감하기 위해 최종 모델에서는 validation을 사용하지 않았다.
+4. 에이전트가 **같은 타일을 선택**할 수 있게 할 것인가?
+    - 한 에피소드 내에서 한 번 선택한 타일은 이후의 time step에서 선택하지 못하도록 하는 방법: 오히려 에이전트가 ‘이미 연 타일을 반복해서 선택하는 것은 좋지 않은 행동’임을 학습하는 걸 방해하는 것이라고 생각하게 되었다.
+    - 하지만 같은 타일을 계속 선택하다 보면 time step이 엄청나게 길어질 수 있다.
+        
+        → 최대 time step 71(81-10)으로 제한했다. (멈춤 조건 설정)
+        
+5. 지뢰를 선택했을 때와 방문했던 좌표를 또 선택할 때의 보상이 동일함에도 불구하고, 학습이 진행됨에 따라 지뢰는 거의 선택하지 않는데 이미 갔던 (안전하다고 판단하는) 좌표는 계속 방문하는 문제 발생: 
+    
+    이미 방문한 타일을 다시 방문할 때마다 페널티를 점진적으로 증가시키는 방법을 사용하여 에이전트가 동일한 타일을 반복해서 방문하지 않도록 시도해보았다.
+    
+    ```python
+    self.visit_count = {}
+    
+    self.rewards = {'explode' : -1, 'nonprogress' : -1,'open_nonzero' : 0.1, 'open_zero' : 0.3, 'clear' : 1}
+    
+    if (x, y) in self.visit_count:  # 선택한 좌표 (x,y)가 이미 방문된 경우
+    		self.visit_count[(x, y)] += 1  # 방문 횟수 증가
+    		reward = self.rewards['nonprogress'] * self.visit_count[(x, y)]
+    ```
+    
+    방문 타일 보상 페널티 누적 여부에 따라 성능이 크게 달라지지 않았다.
+    
+6. 보상 설정
+    1. 지뢰 선택 시 (---) / 지뢰 아닌 좌표 선택 시 (+) / 승리 시 (++)
+    2. 지뢰 선택 시 (---) / 0을 선택하여 많은 좌표가 열렸을 시 (++) / 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
+    3. 지뢰 선택 시 (---) / 이미 연 좌표 선택 시 (---) / 새로운 0 선택 시 (++) / 새로운 0이 아닌 숫자 좌표 선택 시 (+) / 승리 시 (+++)
+    
+    최종 모델에는 c.의 보상 설정 방식을 선정했다.
+    
+7. Optimizer: Adam과 RMSprop
+8. Net: DNN과 CNN / 기본적인 CNN과 ResNet을 참고한 구조
+    
+    ```python
+    class ResidualBlock(nn.Module):
+        def __init__(self, in_channels, out_channels, stride=1):
+            super(ResidualBlock, self).__init__()
+            self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
+            self.bn1 = nn.BatchNorm2d(out_channels)
+            self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+            self.bn2 = nn.BatchNorm2d(out_channels)
+            self.downsample = nn.Sequential()
+            if stride != 1 or in_channels != out_channels:
+                self.downsample = nn.Sequential(
+                    nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride),
+                    nn.BatchNorm2d(out_channels)
+                )
+    
+        def forward(self, x):
+            residual = self.downsample(x)
+            out = F.relu(self.bn1(self.conv1(x)))
+            out = self.bn2(self.conv2(out))
+            out += residual
+            out = F.relu(out)
+            return out
+    ```
+    
+    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/b2ad8e67-1f67-40fd-80c3-5b548167af16/Untitled.png)
+    
+    - 2015년에 개최된 ILSVRC(ImageNet Large Scale Visual Recognition Challenge)에서 우승을 차지하고 딥러닝 이미지 분야에서 많이 사용되고 있는 ResNet의 구조를 참고했다.
+    - ResNet은 Residual Learning을 이용하는데, 위 그림의 $F(x)$  (잔차) + $x$ 를 최소화하는 것을 목적으로 한다. ResidualBlock 클래스의 forward 메서드에서 이 구조를 따랐다.
+    
+    ```python
+    class Net(nn.Module):
+        def __init__(self, grid_size_X, grid_size_Y, action_size):
+            super(Net, self).__init__()
+            self.in_channels = 64
+    
+            self.conv = nn.Conv2d(1, 64, kernel_size=7, stride=1, padding=3)
+            self.bn = nn.BatchNorm2d(64)
+            self.layer1 = self._make_layer(64, 2, stride=1)
+            self.layer2 = self._make_layer(128, 2, stride=2)
+            self.layer3 = self._make_layer(256, 2, stride=1)
+            self.layer4 = self._make_layer(512, 2, stride=2)
+            self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+            self.fc = nn.Linear(512, action_size)
+    
+        def _make_layer(self, out_channels, blocks, stride=1):
+            layers = []
+            layers.append(ResidualBlock(self.in_channels, out_channels, stride))
+            self.in_channels = out_channels
+            for _ in range(1, blocks):
+                layers.append(ResidualBlock(out_channels, out_channels))
+            return nn.Sequential(*layers)
+    
+        def forward(self, x):
+            out = F.relu(self.bn(self.conv(x)))
+            out = self.layer1(out)
+            out = self.layer2(out)
+            out = self.layer3(out)
+            out = self.layer4(out)
+            out = self.avgpool(out)
+            out = out.view(out.size(0), -1)
+            # 텐서의 첫 번째 (인덱스가 0) 차원 -배치 크기- 은 고정하고 나머지 차원의 크기를 곱해 2차원 텐서로 변환
+            out = self.fc(out)
+            return out
+    ```
+    
+    Residual Learning을 이용한 Net을 사용한 경우, 모델이 무거워지고 그렇다고 해서 성능이 크게 향상되지도 않았기 때문에 최종 모델에는 사용하지 않았다.
+    
+9. Learning rate scheduler: lambdaLR / cyclicLR / StepLR
+10. 모델 저장(추론 / 학습 재개를 위해 일반 체크포인트(checkpoint) 저장하기 & 불러오기**)**
+    - 체크포인트 저장하기
+        
+        ```python
+        if epi % CHECKPOINT_INTERVAL == 0:
+            checkpoint_path = f"checkpoint_{epi}.tar"
+            save_checkpoint(agent, agent.optimizer, epi, score, checkpoint_path)
+            print(f"Checkpoint saved at episode {epi} to {checkpoint_path}.")
+        ```
+        
+    - 체크포인트 불러오기
+        
+        ```python
+        checkpoint_path = 'checkpoint_5000.tar'  # 예) 5000번째 에피소드 체크포인트
+        agent, optimizer, start_epoch, last_loss = load_checkpoint(agent, optimizer, checkpoint_path)
+        
+        print(f"Checkpoint loaded from {checkpoint_path}. Starting from epoch {start_epoch}.")
+        ```
 ***
 # 최고 성능이 나온 방법론 (모델)
 
