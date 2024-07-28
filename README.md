@@ -45,12 +45,9 @@ rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 
     - **`state_size`**: 지뢰판 크기
     - **`minefield`**  : 지뢰 찾기 게임 상황이 저장된 애트리뷰트(정답지)
         
-        0: 지뢰 없음 / 1: 지뢰 있음
-        
         - **type:** np.array
-        - **구조:** grid_size_X x grid_size_Y 크기의 2D NumPy 배열
-        - **초기값:** 모든 셀이 0
-        - 이후 reset() 내 place_mines()에서 지뢰를 심는다. (-1로 update)
+        - **구조:** `grid_size_X` x `grid_size_Y` 크기의 2D NumPy 배열
+        - 초기값: 모든 셀이 0 -> 이후 reset() 내 place_mines()에서 지뢰를 심는다. (-1로 update)
     - **`playerfield`** : 플레이어가 보는 지뢰밭 상태
         
         *-1(mine), 0, 1, 2, 3, 4, 5, 6, 7, 8, 9(hidden)* 
