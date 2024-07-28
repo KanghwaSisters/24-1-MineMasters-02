@@ -60,7 +60,7 @@
 
 ## Methods
 
-- **`__init__`**: 게임판 크기, minefield 크기, playerfield 크기, state 크기, 폭발 여부, done 여부, 첫 스텝 여부, 방문 좌표 set, reward 배열 등의 변수를 초기화한다.
+### 1. **`__init__`**: 게임판 크기, minefield 크기, playerfield 크기, state 크기, 폭발 여부, done 여부, 첫 스텝 여부, 방문 좌표 set, reward 배열 등의 변수를 초기화한다.
 
 ```python
 class Environment:
@@ -83,7 +83,7 @@ class Environment:
         self.rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 'clear' : 1}
 ```
 
-- **`reset`**: 에피소드를 초기 상태로 되돌리는 역할
+### 2. **`reset`**: 에피소드를 초기 상태로 되돌리는 역할
     
     새로운 게임에 필요한 지뢰를 배치하고, 새로운 playerfield 를 제공한다.
     
@@ -135,7 +135,7 @@ class Environment:
         return count
 ```
 
-- **`step`**: 에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
+### 3. **`step`**: 에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
     - next_state, reward, done 반환
     - 동작 과정
         1. 1차원 인덱스 `action` 를 2차원 좌표로 변환한다. 
@@ -165,12 +165,12 @@ class Environment:
 
 ```python
 def step(self, action):
-        x, y = divmod(action, self.grid_size_X)  # 1차원 인덱스를 2차원 좌표로 변환
+        x, y = divmod(action, self.grid_size_X)
 
         reward = 0
         done = False
 
-        # 지뢰 선택 시 done
+        # explode: 지뢰 선택 시 done
         if self.minefield[x, y] == -1:
             self.playerfield[x, y] = self.minefield[x, y]  # 타일 열기
             self.explode = True
@@ -179,26 +179,46 @@ def step(self, action):
 
         # 지뢰를 선택하지 않은 경우
         else:
-            if (x, y) in self.visited:  # 선택한 좌표 (x,y)가 이미 visited
-                reward = self.rewards['nonprogress']
-            else: # 선택한 좌표 (x, y)가 nonvisited
+          # noprogress: 선택한 좌표 (x,y)가 이미 방문된 경우
+            if (x, y) in self.visited:
+                reward = self.rewards['noprogress']
+          # 선택한 좌표 (x, y)가 처음 방문된 경우
+            else:
                 self.playerfield[x, y] = self.minefield[x, y]  # 타일 열기
-                if self.playerfield[x, y] == 0:  # opened tile이 0
-                    reward = self.rewards['open_zero']
-                    self.auto_reveal_tiles(x, y)  # (x, y) 주변 타일 열기
-                else:  # opened tile이 nonzero
-                    reward = self.rewards['open_nonzero']
-                self.visited.add((x, y))  # update visited set
+                self.visited.add((x,y))
+                # 가장자리 타일
+                if x in [0, 8] or y in [0, 8]:
+                    # guess
+                    if self.count_adjacent_hidden(x, y) == 5:
+                        reward = self.rewards['guess']
+                    # progress
+                    else:
+                        reward = self.rewards['progress']
+                # 꼭짓점 타일
+                elif x in [0, 8] and y in [0, 8]:
+                    # guess
+                    if self.count_adjacent_hidden(x, y) == 3:
+                        reward = self.rewards['guess']
+                    # progress
+                    else:
+                        reward = self.rewards['progress']
+                else:
+                    if self.count_adjacent_hidden(x, y) == 8:
+                        reward = self.rewards['guess']
+                    # progress
+                    else:
+                        reward = self.rewards['progress']
+                # open한 타일이 0이면 주위 타일 open
+                if self.playerfield[x, y] == 0:
+                  self.auto_reveal_tiles(x, y)  # (x, y) 주변 타일 열기
 
-            # 모든 hidden 타일이 지뢰만 남아 있는 경우 승리
+            # clear: 모든 hidden 타일이 지뢰만 남아 있는 경우 승리
             if np.count_nonzero(self.playerfield == 9) == self.num_mines:
                 done = True
                 reward = self.rewards['clear']
 
         self.done = done
-
         next_state = self.playerfield
-
         return next_state, reward, done
 ```
 
@@ -235,7 +255,7 @@ def step(self, action):
                             queue.append((nx, ny))
 ```
 
-- **`render`** : 특정 시점에 `playerfield` 게임판의 상태를 render
+### 4. **`render`** : 특정 시점에 `playerfield` 게임판의 상태를 render
     - hidden tile: **.**
     - mine: X
     - 나머지: 0~8 (인접한 지뢰수)
