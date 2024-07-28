@@ -150,7 +150,7 @@ class Environment:
             - 게임 패배
         2. 지뢰(-1)가 아닌 경우
             1. 선택한 좌표가 이미 open된 좌표인 경우
-                - `done`, `explode`, `reward` 로 각각 False, False, rewards['nonprogress'] 반환
+                - `done`, `explode`, `reward` 로 각각 False, False, rewards['noprogress'] 반환
                 - `next_state`로 `playerfield` 반환
             2. 선택한 좌표가 처음 open된 좌표인 경우
                 1. `visited` 배열에 타일 추가
