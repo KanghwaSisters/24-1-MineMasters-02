@@ -357,7 +357,6 @@ class MineSweeper(nn.Module):
         super(MineSweeper, self).__init__()
         self.render = False
 
-        # 상태와 행동의 크기 정의
         self.state_size = state_size
         self.action_size = action_size
         self.grid_size_X = grid_size_X
@@ -365,18 +364,15 @@ class MineSweeper(nn.Module):
 
         self.environment = environment
 
-        # Hyperparameters
         self.discount_factor = DISCOUNT_FACTOR
         self.learning_rate = LEARNING_RATE
         self.epsilon = EPSILON
         self.epsilon_decay = EPSILON_DECAY
         self.epsilon_min = EPSILON_MIN
-        self.conv_unit = CONV_UNIT
 
         self.target_update_counter = TARGET_UPDATE_COUNTER
         self.update_target_every = UPDATE_TARGET_EVERY
 
-        # Replay memory
         self.batch_size = BATCH_SIZE
         self.train_start = TRAIN_START
         self.maxlen = MAX_LEN
@@ -384,14 +380,12 @@ class MineSweeper(nn.Module):
 
         self.memory = deque(maxlen=self.maxlen)
 
-        # 모델과 타깃 모델 생성
         self.model = Net(self.action_size).to(device)
         self.target_model = Net(self.action_size).to(device)
         self.loss = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.scheduler = optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=0.0001, max_lr=0.1, step_size_up=10000, mode='exp_range')
 
-        # 타깃 모델 초기화
         self.update_target_model()
 ```
 
