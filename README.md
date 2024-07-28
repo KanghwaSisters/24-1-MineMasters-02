@@ -314,6 +314,16 @@ class Net(nn.Module):
         return x
 ```
 
+- 배치 정규화 (Batch normalization)
+    - 기대할 수 있는 장점
+        - 학습 속도가 빨라짐
+        - 파라미터 초기화에 덜 민감함
+        - 모델을 일반화
+- 풀링 (Pooling)
+    - Pooling layer는 convolution layer의 출력 데이터를 입력으로 받는다. 그리고 출력 데이터의 크기를 줄이거나 특정 데이터를 강조하는 용도로 사용된다.
+    - Net의 파라미터 개수나 연산량을 줄이기 위해 downsampling하는 것이다.
+    - Receptive field를 크게 만들어 전역적 특징을 더 잘 포착하도록 할 수 있다.
+
 ***
 # Agent
 
@@ -388,14 +398,24 @@ class MineSweeper(nn.Module):
 
         self.update_target_model()
 ```
-
+2. **`update_target_model`**
+    
+    타깃 모델을 모델의 가중치로 업데이트한다.
+    
 
 ```python
     def update_target_model(self):
         self.target_model.load_state_dict(self.model.state_dict())
 ```
 
-- `update_target_model`: 타깃 모델을 업데이트한다.
+3. **`get_action`**
+    
+    입실론 탐욕 정책을 사용하여 행동을 결정한다. 탐험을 통해 무작위로 행동을 결정하거나, 인공 신경망을 통해 탐욕적으로 행동을 선택한다.
+    
+    - `action = torch.argmax(q_value).item()`
+        
+        반환값 : `q_value` 텐서에서 최대값을 가지는 요소 (여러 개여도 첫 번째 하나의 요소(`torch.argmax()`)의 인덱스를 나타내는 정수 값(`.item()`)
+        
 
 ```python
     def get_action(self, state):
@@ -411,7 +431,10 @@ class MineSweeper(nn.Module):
         return action
 ```
 
-- `get_action`: 입실론 탐욕 정책을 사용하여 행동을 결정한다. 탐험을 통해 무작위로 행동을 결정하거나, 인공신경망을 통해 탐욕적으로 행동을 선택한다.
+4. **`append_sample`**
+    
+    샘플을 리플레이 메모리에 저장한다.
+    
 
 ```python
     def append_sample(self, state, action, reward, next_state, done):
@@ -420,13 +443,21 @@ class MineSweeper(nn.Module):
         self.memory.append((state, action, reward, next_state, done))
 ```
 
-- `append_sample`: ‘상태-행동-보상-다음 상태-완료’의 값을 갖는 샘플을 리플레이 메모리에 저장한다.
+5. **`train_model`**
+    
+    리플레이 메모리에서 샘플링한 배치로 모델을 학습하고 타깃 모델을 주기적으로 업데이트한다.
+    
+    - **모델 학습 과정**
+        - 리플레이 메모리에서 무작위로 샘플링하여 배치 생성
+        - 현재 모델을 사용하여 상태의 Q-value 예측
+        - 타깃 신경망을 사용하여 다음 상태의 최대 Q-value을 계산하고 벨만 최적 방정식으로 타깃 업데이트
+        - 예측한 Q값과 타깃 Q값의 차이를 계산하여 loss 구함
+        - loss를 기반으로 모델 가중치 업데이트 및 학습률 조정
 
 ```python
-    def train_model(self):
+   	def train_model(self):
         if len(self.memory) < self.batch_size:
             return
-
         minibatch = random.sample(self.memory, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*minibatch)
 
@@ -445,7 +476,7 @@ class MineSweeper(nn.Module):
         next_states = torch.tensor(next_states, dtype=torch.float32).to(device)
         dones = torch.tensor(dones, dtype=torch.float32).to(device)
 
-        pred = self.model(states
+        pred = self.model(states)
         target_pred = self.target_model(next_states).max(1)[0].detach()
 
         targets = rewards + (1 - dones) * self.discount_factor * target_pred
@@ -458,7 +489,6 @@ class MineSweeper(nn.Module):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
         self.scheduler.step()
 
         self.target_update_counter += 1
@@ -467,46 +497,6 @@ class MineSweeper(nn.Module):
             self.update_target_model()
 ```
 
-- `train_model`: 리플레이 메모리에서 샘플링한 배치로 모델을 학습하고 타깃 모델을 주기적으로 업데이트한다.
-    - **모델 학습 과정**
-        - 리플레이 메모리에서 무작위로 샘플링하여 배치 생성
-        - 현재 모델을 사용하여 상태의 Q-value 예측
-        - 타깃 신경망을 사용하여 다음 상태의 최대 Q-value을 계산하고 벨만 최적 방정식으로 타깃 업데이트
-        - 예측한 Q값과 타깃 Q값의 차이를 계산하여 loss 구함
-        - loss를 기반으로 모델 가중치 업데이트 및 학습률 조정
-
-```python
-    def validate_model(self, validation_env, episodes=100):
-        self.model.eval()
-        total_score = 0
-        total_wins = 0
-
-        for epi in range(episodes):
-            state = validation_env.reset()
-            done = False
-            score = 0
-
-            while not done:
-                action = self.get_action(state)
-                next_state, reward, done = validation_env.step(action)
-                score += reward
-                state = next_state
-
-            total_score += score
-            if not validation_env.explode:
-                total_wins += 1
-
-        avg_score = total_score / episodes
-        win_rate = (total_wins / episodes) * 100
-
-        print(f"Validation results over {episodes} episodes:")
-        print(f"Average score: {avg_score:.2f}")
-        print(f"Win rate: {win_rate:.2f}%")
-
-        self.model.train()
-```
-
-- `validate_model`: validation 환경에서 에이전트를 평가하고 평균 점수와 승률을 출력한다.
 ***
 # Train
 
