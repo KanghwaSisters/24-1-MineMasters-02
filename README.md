@@ -3,7 +3,22 @@
 👩‍💻 이정연, 손주현
 ***
 # 목차
-[# Environment](#Environment)
+[Environment](#Environment)
+
+[Net](#Net)
+
+[Agent](#Agent)
+
+[Train](#Train)
+
+[코드 속도 개선](#코드-속도-개선)
+
+[시도한 방법론 분석 아이디어 및 결과](#-시도한-방법론-분석-아이디어-및-결과)
+
+[최고 성능이 나온 방법론 (모델)](#-최고-성능이-나온-방법론-(모델))
+
+[문제 해결 및 개선한 점](#-문제-해결-및-개선한=점)
+
 ***
 # Environment
 
@@ -227,7 +242,10 @@ def render(self):  # 인수 설정
                     print()
         print('\n')
 ```
+***
+# Net
 
+***
 # Agent
 
 ### Hyperparameters
@@ -417,85 +435,7 @@ class MineSweeper(nn.Module):
 ```
 
 - `validate_model`: validation 환경에서 에이전트를 평가하고 평균 점수와 승률을 출력한다.
-
-# Net
-
-```python
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1):
-        super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-        self.downsample = nn.Sequential()
-        if stride != 1 or in_channels != out_channels:
-            self.downsample = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride),
-                nn.BatchNorm2d(out_channels)
-            )
-
-    def forward(self, x):
-        residual = self.downsample(x)
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out += residual
-        out = F.relu(out)
-        return out
-```
-
-![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/b2ad8e67-1f67-40fd-80c3-5b548167af16/Untitled.png)
-
-- 2015년에 개최된 ILSVRC(ImageNet Large Scale Visual Recognition Challenge)에서 우승을 차지하고 딥러닝 이미지 분야에서 많이 사용되고 있는 ResNet의 구조를 참고했다.
-- ResNet은 Residual Learning을 이용하는데, 위 그림의 $F(x)$  (잔차) + $x$ 를 최소화하는 것을 목적으로 한다. ResidualBlock 클래스의 forward 메서드에서 이 구조를 따랐다.
-
-```python
-class Net(nn.Module):
-    def __init__(self, grid_size_X, grid_size_Y, action_size):
-        super(Net, self).__init__()
-        self.in_channels = 64
-
-        self.conv = nn.Conv2d(1, 64, kernel_size=7, stride=1, padding=3)
-        self.bn = nn.BatchNorm2d(64)
-        self.layer1 = self._make_layer(64, 2, stride=1)
-        self.layer2 = self._make_layer(128, 2, stride=2)
-        self.layer3 = self._make_layer(256, 2, stride=1)
-        self.layer4 = self._make_layer(512, 2, stride=2)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512, action_size)
-
-    def _make_layer(self, out_channels, blocks, stride=1):
-        layers = []
-        layers.append(ResidualBlock(self.in_channels, out_channels, stride))
-        self.in_channels = out_channels
-        for _ in range(1, blocks):
-            layers.append(ResidualBlock(out_channels, out_channels))
-        return nn.Sequential(*layers)
-
-    def forward(self, x):
-        out = F.relu(self.bn(self.conv(x)))
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
-        out = self.avgpool(out)
-        out = out.view(out.size(0), -1)
-        # 텐서의 첫 번째 (인덱스가 0) 차원 -배치 크기- 은 고정하고 나머지 차원의 크기를 곱해 2차원 텐서로 변환
-        out = self.fc(out)
-        return out
-```
-
-![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/bd281c46-fb96-4ebc-8348-222a6eecf3e6/42b2bd6c-427c-490d-ba61-a2bc3f846e51.png)
-
-- 배치 정규화 (Batch normalization)
-    
-    : CNN에서 활성화 함수를 거쳐 나온 출력에 적용되어 값의 평균이 0, 단위 분산이 되도록 정규화
-    
-    - 기대할 수 있는 장점
-        - 학습 속도가 빨라짐
-        - 파라미터 초기화에 덜 민감함
-        - 모델을 일반화
-
+***
 # Train
 
 ```python
@@ -641,42 +581,7 @@ for epi in range(EPISODES):
     - 이후에는 20000을 주기로 validation
 - CheckPoint마다 모델 저장
 
-# Test
-
-```python
-test_wins = []
-
-for i in range(1000):
-    state = env.reset()
-    done = False
-    total_reward = 0
-    steps = 0
-    agent.epsilon = 0
-
-    while not done:
-        action = agent.get_action(state)
-        next_state, reward, done = env.step(action)
-        total_reward += reward
-        steps += 1
-        state = next_state
-
-    if done and not env.explode:
-        test_wins.append(1)
-    else:
-        test_wins.append(0)
-
-    if (i+1) % 100 == 0:
-        print(f"Episode {i+1}: Total Reward: {total_reward}, Steps: {steps}")
-        env.render()
-        visualize_q_values(agent.q_values, agent.grid_size_X, agent.grid_size_Y) # Q-values 시각화
-
-# 테스트 승률 출력
-test_win_rate = np.mean(test_wins) * 100
-print(f"Test Win Rate: {test_win_rate:.2f}%")
-```
-
-- agent.epsilon = 0으로 하여 탐욕 정책에 의해서만 행동을 선택하도록 한다.
-
+***
 # 코드 속도 개선
 
 1. 리스트와 넘파이 배열
@@ -749,7 +654,7 @@ print(f"Test Win Rate: {test_win_rate:.2f}%")
                                         queue.append((nx, ny))
             ```
             
-
+***
 # 시도한 방법론 분석 아이디어 및 결과
 
 1. 먼저 **게임판을 10개로 한정**하여 성능(승률)을 높이는 것을 시도함
@@ -920,7 +825,7 @@ print(f"Test Win Rate: {test_win_rate:.2f}%")
         print(f"Checkpoint loaded from {checkpoint_path}. Starting from epoch {start_epoch}.")
         ```
         
-
+***
 # 최고 성능이 나온 방법론 (모델)
 
 - **Adam optimizer를 이용한 모델**
@@ -931,6 +836,7 @@ print(f"Test Win Rate: {test_win_rate:.2f}%")
 
 ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1c873709-ed4b-4a75-ae8b-055a2c375a93/f457119c-a946-4bf8-a444-5fac91cb0cb0/Untitled.png)
 
+***
 # 문제 해결 및 개선한 점
 
 - Train의 #safe first click 부분 수정
