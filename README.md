@@ -153,6 +153,7 @@ class Environment:
                     1. visited 배열에 타일 추가
                     2. 타일 open (playerfield의 좌표에 minefield의 해당좌표 값을 복사)
                         1-1. open 한 타일이 주변이 전부 hidden인 경우
+			    - 중심부 타일은 주변을 둘러싼 타일이 8개 / 가장자리 타일은 5개 / 꼭짓점 타일은 3개
                             - reward로 rewards[’guess’] 부여
                         1-2. open 한 타일 주변에 이미 open된 타일이 있는 경우
                             - reward로 rewards[’progress’]  부여
