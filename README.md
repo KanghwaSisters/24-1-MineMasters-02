@@ -60,7 +60,7 @@
 
 ## Methods
 
-### 1. **`__init__`**: 
+### 1. **`__init__`**
 게임판 크기, minefield 크기, playerfield 크기, state 크기, 폭발 여부, done 여부, 첫 스텝 여부, 방문 좌표 set, reward 배열 등의 변수를 초기화한다.
 
 ```python
@@ -84,7 +84,7 @@ class Environment:
         self.rewards = {'explode' : -1, 'noprogress' : -0.1,'progress' : 0.3, 'guess' : 0.1, 'clear' : 1}
 ```
 
-### 2. **`reset`**: 
+### 2. **`reset`**
 에피소드를 초기 상태로 되돌리는 역할
 새로운 게임에 필요한 지뢰를 배치하고, 새로운 playerfield 를 제공한다.
 - `place_mines`  : 지뢰 개수만큼 임의의 좌표에 지뢰를 심은 후, 지뢰가 없는 좌표에 대해서는 인접한 지뢰개수를 playerfield에 update한다.
@@ -135,34 +135,36 @@ class Environment:
         return count
 ```
 
-### 3. **`step`**: 
-에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
-    - next_state, reward, done 반환
-    - 동작 과정
+### 3. **`step`**
+### 에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
+- `next_state`, `reward`, `done` 반환
+
+### 동작 과정
 1. 1차원 인덱스 `action` 를 2차원 좌표로 변환한다. 
     - (minefield, playerfield 모두 2차원이기 때문에)    
 
 2. 선택한 좌표 (x,y)가 지뢰인지 여부를 minefield에서 확인
     1. 지뢰(-1)인 경우 
-        - done, explode, reward 로 각각 True, True, rewards['explode'] 반환
+        - `done`, `explode`, `reward` 로 각각 `True`, `True`, `rewards['explode']` 반환
         - 게임 패배
     
     2. 지뢰(-1)가 아닌 경우
         i. 선택한 좌표가 이미 open된 좌표인 경우
-            1. done, explode, reward 로 각각 False, False, rewards['nonprogress']` 반환
-            2. next_state로 playerfield 반환
+            1. `done`, `explode`, `reward` 로 각각 `False`, `False`, `rewards['nonprogress']` 반환
+            2. `next_state`로 `playerfield` 반환
 
         ii. 선택한 좌표가 처음 open된 좌표인 경우
-       		1. visited 배열에 타일 추가
-       		2. 타일 open (playerfield의 좌표에 minefield의 해당좌표 값을 복사)
-       			- 중심부 타일은 주변을 둘러싼 타일이 8개 / 가장자리 타일은 5개 / 꼭짓점 타일은 3개
-                	1-1) open 한 타일이 주변이 전부 hidden인 경우
-                    		- reward로 rewards['guess'] 부여
-                	1-2) open 한 타일 주변에 이미 open된 타일이 있는 경우
-                    - reward로 rewards['progress'] 부여
-            	3. open 한 타일이 0이면 주위 타일 open (`auto_reveal_tiles`)
-       		4. hidden tile(9)이 남아있는 경우 done=False, 남아있지 않은 경우 done=True 반환
-            	5. next_state로 playerfield 반환
+            1. `visited` 배열에 타일 추가
+            2. 타일 open (`playerfield`의 좌표에 `minefield`의 해당좌표 값을 복사)
+                - 중심부 타일은 주변을 둘러싼 타일이 8개 / 가장자리 타일은 5개 / 꼭짓점 타일은 3개
+                1-1. open 한 타일이 주변이 전부 hidden인 경우
+                    - `reward`로 `rewards['guess']` 부여
+                1-2. open 한 타일 주변에 이미 open된 타일이 있는 경우
+                    - `reward`로 `rewards['progress']` 부여
+            3. open 한 타일이 0이면 주위 타일 open (`auto_reveal_tiles`)
+            4. hidden tile(9)이 남아있는 경우 `done=False`, 남아있지 않은 경우 `done=True` 반환
+            5. `next_state`로 `playerfield` 반환
+
 
 ```python
 def step(self, action):
@@ -263,7 +265,7 @@ def step(self, action):
         return count
 ```
 
-### 4. **`render`** : 
+### 4. **`render`** 
 특정 시점에 `playerfield` 게임판의 상태를 render
     - hidden tile: **.**
     - mine: X
