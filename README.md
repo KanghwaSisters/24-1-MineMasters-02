@@ -33,7 +33,7 @@
         
         - **type:** np.array
         - **구조:** `grid_size_X` x `grid_size_Y` 크기의 2D NumPy 배열
-        - 초기값: 모든 셀이 0 → 이후 reset() 내 place_mines()에서 지뢰를 심는다. (-1로 update)
+        - 초기값: 모든 셀이 0 → 이후 `reset()` 내 `place_mines()`에서 지뢰를 심는다. (-1로 update)
     - **`playerfield`** : 플레이어가 보는 지뢰밭 상태
         
         *-1(mine), 0, 1, 2, 3, 4, 5, 6, 7, 8, 9(hidden)* 
@@ -136,35 +136,33 @@ class Environment:
 ```
 
 ### 3. **`step`**
-### 에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
+에이전트가 환경에서 action을 한 단계 수행할 때마다 호출
+
 - `next_state`, `reward`, `done` 반환
-
-### 동작 과정
-1. 1차원 인덱스 `action` 를 2차원 좌표로 변환한다. 
-    - (minefield, playerfield 모두 2차원이기 때문에)    
-
-2. 선택한 좌표 (x,y)가 지뢰인지 여부를 minefield에서 확인
-    1. 지뢰(-1)인 경우 
-        - `done`, `explode`, `reward` 로 각각 `True`, `True`, `rewards['explode']` 반환
-        - 게임 패배
-    
-    2. 지뢰(-1)가 아닌 경우
-        i. 선택한 좌표가 이미 open된 좌표인 경우
-            1. `done`, `explode`, `reward` 로 각각 `False`, `False`, `rewards['nonprogress']` 반환
-            2. `next_state`로 `playerfield` 반환
-
-        ii. 선택한 좌표가 처음 open된 좌표인 경우
-            1. `visited` 배열에 타일 추가
-            2. 타일 open (`playerfield`의 좌표에 `minefield`의 해당좌표 값을 복사)
-                - 중심부 타일은 주변을 둘러싼 타일이 8개 / 가장자리 타일은 5개 / 꼭짓점 타일은 3개
-                1-1. open 한 타일이 주변이 전부 hidden인 경우
-                    - `reward`로 `rewards['guess']` 부여
-                1-2. open 한 타일 주변에 이미 open된 타일이 있는 경우
-                    - `reward`로 `rewards['progress']` 부여
-            3. open 한 타일이 0이면 주위 타일 open (`auto_reveal_tiles`)
-            4. hidden tile(9)이 남아있는 경우 `done=False`, 남아있지 않은 경우 `done=True` 반환
-            5. `next_state`로 `playerfield` 반환
-
+- 동작 과정
+    1. 1차원 인덱스 `action` 를 2차원 좌표로 변환한다.
+        
+        (minefield, playerfield 모두 2차원이기 때문에)
+        
+    2. 선택한 좌표 (x,y)가 지뢰인지 여부를 minefield에서 확인
+        1. 지뢰(-1)인 경우
+            - `done`, `explode`, `reward` 로 각각 True, True, rewards['explode'] 반환
+            - 게임 패배
+        2. 지뢰(-1)가 아닌 경우
+            1. 선택한 좌표가 이미 open된 좌표인 경우
+                - `done`, `explode`, `reward` 로 각각 False, False, rewards['nonprogress'] 반환
+                - `next_state`로 `playerfield` 반환
+            2. 선택한 좌표가 처음 open된 좌표인 경우
+                1. `visited` 배열에 타일 추가
+                2. 타일 open (playerfield의 좌표에 minefield의 해당 좌표 값을 복사)
+                    - 중심부 타일은 주변을 둘러싼 타일이 8개 / 가장자리 타일은 5개 / 꼭짓점 타일은 3개
+                        1. open한 타일이 주변이 전부 hidden인 경우
+                            - `reward`로 rewards['guess'] 부여
+                        2. open한 타일 주변에 이미 open된 타일이 있는 경우
+                            - `reward`로 rewards['progress'] 부여
+                3. open한 타일이 0이면 주위 타일 open (`auto_reveal_tiles`)
+                4. hidden tile(9)이 남아있는 경우 `done=False`, 남아있지 않은 경우 `done=True` 반환
+                5. `next_state`로 playerfield 반환
 
 ```python
 def step(self, action):
@@ -266,10 +264,10 @@ def step(self, action):
 ```
 
 ### 4. **`render`** 
-특정 시점에 `playerfield` 게임판의 상태를 render
-    - hidden tile: **.**
-    - mine: X
-    - 나머지: 0~8 (인접한 지뢰수)
+특정 시점에 playerfield 게임판의 상태를 render
+- Hidden tile: **.**
+- Mine: **X**
+- 나머지: **0~8** (인접한 지뢰 수)
 
 ```python
 def render(self):  # 인수 설정
@@ -286,8 +284,35 @@ def render(self):  # 인수 설정
                     print()
         print('\n')
 ```
+
 ***
 # Net
+```python
+class Net(nn.Module):
+    def __init__(self, action_size):
+        super(Net, self).__init__()
+
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=2, bias=False)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv4 = nn.Conv2d(64, action_size, kernel_size=3, stride=1, padding=1, bias=False)
+
+        self.bn2 = nn.BatchNorm2d(64)
+        self.bn3 = nn.BatchNorm2d(64)
+
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+
+        self.dropout = nn.Dropout(0.25)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = self.pool(F.relu(self.bn2(self.conv2(x))))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = self.pool(F.relu(self.conv4(x)))
+        x = self.dropout(x)
+        x = torch.mean(x, dim=[2, 3])  # Global Average Pooling
+        return x
+```
 
 ***
 # Agent
@@ -295,23 +320,24 @@ def render(self):  # 인수 설정
 ### Hyperparameters
 
 ```python
-DISCOUNT_FACTOR = 0.9
-LEARNING_RATE = 0.001
-EPSILON = 1.0
-EPSILON_DECAY = 0.999
-EPSILON_MIN = 0.01
+DISCOUNT_FACTOR = 0.1
+LEARNING_RATE = 0.01
 
-BATCH_SIZE = 64
-TRAIN_START = 1000
-MAX_LEN = 5000
+EPSILON = 0.99
+EPSILON_DECAY = 0.9999
+EPSILON_MIN = 0.01
 
 TARGET_UPDATE_COUNTER = 0
 UPDATE_TARGET_EVERY = 5
+
+BATCH_SIZE = 64
+TRAIN_START = 1000
+MAX_LEN = 50000
 ```
 
-- **DISCOUNT_FACTOR**: 미래 보상의 현재 가치에 대한 할인 계수
-- **LEARNING_RATE**: optimizer에 적용할 학습률
-- **EPSILON**: 탐험을 할 확률을 조절하는 값 (초기 1.0)
+- **DISCOUNT_FACTOR**: 미래 보상의 현재 가치에 대한 할인 계수 (Gamma)
+- **LEARNING_RATE**: Optimizer에 적용할 학습률
+- **EPSILON**: 탐험을 할 확률을 조절하는 값 (초기 0.99)
 - **EPSILON_MIN**: (최소 0.01)
 - **EPSILON_DECAY** 매 에피소드가 끝날 때마다 입실론에 곱하여 입실론 값을 작아지게 하는 값
 - **BATCH_SIZE**: 리플레이 메모리에서 샘플링할 배치 크기
@@ -321,12 +347,17 @@ UPDATE_TARGET_EVERY = 5
 
 ### Methods
 
+1. **`__init__`**
+
+상태 크기, 행동 크기, 하이퍼파라미터, 리플레이 메모리, 모델, 타깃 모델 등을 초기화한다.
+
 ```python
 class MineSweeper(nn.Module):
     def __init__(self, state_size, action_size, grid_size_X, grid_size_Y, environment):
         super(MineSweeper, self).__init__()
         self.render = False
 
+        # 상태와 행동의 크기 정의
         self.state_size = state_size
         self.action_size = action_size
         self.grid_size_X = grid_size_X
@@ -334,33 +365,36 @@ class MineSweeper(nn.Module):
 
         self.environment = environment
 
+        # Hyperparameters
         self.discount_factor = DISCOUNT_FACTOR
         self.learning_rate = LEARNING_RATE
         self.epsilon = EPSILON
         self.epsilon_decay = EPSILON_DECAY
         self.epsilon_min = EPSILON_MIN
+        self.conv_unit = CONV_UNIT
 
         self.target_update_counter = TARGET_UPDATE_COUNTER
         self.update_target_every = UPDATE_TARGET_EVERY
 
+        # Replay memory
         self.batch_size = BATCH_SIZE
         self.train_start = TRAIN_START
         self.maxlen = MAX_LEN
+        self.minlen = MIN_LEN
 
         self.memory = deque(maxlen=self.maxlen)
 
-        self.model = Net(self.grid_size_X, self.grid_size_Y, self.action_size).to(device)
-        self.target_model = Net(self.grid_size_X, self.grid_size_Y, self.action_size).to(device)
+        # 모델과 타깃 모델 생성
+        self.model = Net(self.action_size).to(device)
+        self.target_model = Net(self.action_size).to(device)
         self.loss = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        # self.optimizer = optim.RMSprop(self.model.parameters(), lr=0.01, alpha=0.99)
-        # self.scheduler = optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=1e-5, max_lr=1e-1, step_size_up=10, mode='triangular')
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.99)
+        self.scheduler = optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=0.0001, max_lr=0.1, step_size_up=10000, mode='exp_range')
 
+        # 타깃 모델 초기화
         self.update_target_model()
 ```
 
-- `__init__`: 상태 크기, 행동 크기, 하이퍼파라미터, 리플레이 메모리, 모델, 타깃 모델 등을 초기화한다.
 
 ```python
     def update_target_model(self):
