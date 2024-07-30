@@ -892,3 +892,9 @@ class MineSweeper(nn.Module):
     - epsilon_decay 값을 늘림→ epsilon이 더 천천히 감소하도록
     - epsilon_min 값을 줄여 나중에는 정책에 더 의존할 수 있도록
     - 여러 배치 크기 시도
+
+- ** 모델 저장 및 로드 실패**
+    - 런타임이 끊기면 저장된 모델이 삭제되는 문제를 해결하기 위해 drive에 업로드하는 코드 추가
+
+- ** test 코드에서 무한루프에 빠지는 문제 **
+    - 일정 횟수 이상 step을 진행하면 lose로 간주 
