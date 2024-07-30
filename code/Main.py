@@ -18,19 +18,27 @@ MAX_LEN = 50000
 
 ###
 
-def save_checkpoint(model, optimizer, epoch, path):
+def save_checkpoint_to_drive(model, optimizer, epoch, filename):
+    path = f"/content/drive/MyDrive/{filename}"
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict()
+        'optimizer_state_dict': optimizer.state_dict(),
     }, path)
+    print(f"Checkpoint saved to {path}")
 
-def load_checkpoint(model, optimizer, path):
-    checkpoint = torch.load(path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    epoch = checkpoint['epoch']
-    return model, optimizer, epoch
+def load_checkpoint_from_drive(model, optimizer, filename):
+    path = f"/content/drive/MyDrive/{filename}"
+    if os.path.exists(path):
+        checkpoint = torch.load(path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch']
+        print(f"Checkpoint loaded from {path}")
+        return model, optimizer, epoch
+    else:
+        print(f"Checkpoint file {path} does not exist.")
+        return model, optimizer, 0
 
 ### Main ###
 
@@ -69,13 +77,14 @@ for epi in range(EPISODES):
 
     last_loss = None
 
-    while not done and time_step <= 71:
+    while not done and time_step <= 71: # 71 = 81 - 10 ; 지뢰찾기 성공하려면 지뢰 10개 제외 전부 깐 상태
         time_step += 1
+        # 현재 상태로 행동을 선택
         if env.first_move:
-            mine_state = env.minefield.flatten()
+            mine_state = env.minefield.flatten()  # 정답지 1차원으로
             first_action = random.randint(0, len(mine_state)-1)
             first_state = mine_state[first_action]
-            while first_state == -1:
+            while first_state == -2:
                 first_action = random.randint(0, len(mine_state)-1)
                 first_state = mine_state[first_action]
             action = first_action
@@ -83,9 +92,11 @@ for epi in range(EPISODES):
         else:
             action = agent.get_action(state)
 
+        # 선택한 행동으로 환경에서 한 타임스텝 진행
         next_state, reward, done = env.step(action)
         score += reward
 
+        # 선택한 action(좌표) 리스트에 추가
         (action_x, action_y) = divmod(action, env.grid_size_X)
         actions.append((action_x, action_y))
         rewards.append(reward)
@@ -135,5 +146,5 @@ for epi in range(EPISODES):
     # 매 CHECKPOINT_INTERVAL마다 모델 저장
     if (epi+1) % CHECKPOINT_INTERVAL == 0:
         checkpoint_path = f"checkpoint_{epi}.tar"
-        save_checkpoint(agent, agent.optimizer, epi, checkpoint_path)
+        save_checkpoint_to_drive(agent, agent.optimizer, epi, checkpoint_path)
         print(f"Checkpoint saved at episode {epi} to {checkpoint_path}.")
